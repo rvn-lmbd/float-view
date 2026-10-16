@@ -27,6 +27,7 @@ const SavedSettingsSchema = z.object({
   hiddenStates: HiddenStateSchema,
   mapIconsGreyscale: z.boolean().default(false),
   chartSpacingByTime: z.boolean().default(false),
+  chartSmoothingFrames: z.union([z.literal(1), z.literal(3), z.literal(5), z.literal(9), z.literal(15)]).default(1),
   units: UnitsSchema,
   charts: z.string().array(),
 });
@@ -71,6 +72,9 @@ const settings = new (class {
   /** whether chart x-axis spacing should be proportional to time */
   chartSpacingByTime = $state(savedSettings?.chartSpacingByTime ?? false);
 
+  /** centered moving-average window used to smooth chart lines; 1 disables smoothing */
+  chartSmoothingFrames = $state<1 | 3 | 5 | 9 | 15>(savedSettings?.chartSmoothingFrames ?? 1);
+
   /*
    * derived state
    */
@@ -90,6 +94,7 @@ const settings = new (class {
       hiddenStates: this.hiddenStates,
       mapIconsGreyscale: this.mapIconsGreyscale,
       chartSpacingByTime: this.chartSpacingByTime,
+      chartSmoothingFrames: this.chartSmoothingFrames,
       units: this.units,
       charts: this.charts,
     } satisfies ZSavedSettings),

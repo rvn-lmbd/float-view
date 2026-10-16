@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
-import { DataSource, State, type RowWithIndex } from '../lib/parse/types';
-import { extractGpsInformation, findPointsOfInterest } from './View';
+import { DataSource, State, Units, type RowWithIndex } from '../lib/parse/types';
+import { computeStats, extractGpsInformation, findPointsOfInterest } from './View';
 
 const makeRow = (overrides: Partial<RowWithIndex> = {}): RowWithIndex => ({
   index: 0,
@@ -73,5 +73,98 @@ describe(findPointsOfInterest.name, () => {
       { index: 0, state: State.Custom_OneFootpadAtSpeed },
       { index: 1, state: State.Custom_NoFootpadsAtSpeed },
     ]);
+  });
+});
+
+describe(computeStats.name, () => {
+  test('calculates GPS/controller deviation and the VESC wheel-diameter multiplier', () => {
+    const rows = [
+      makeRow({ index: 0, time: 0, speed: 20, gps_speed: 22, distance: 1.5 }),
+      makeRow({ index: 1, time: 10, speed: 20, gps_speed: 22, distance: 1.6 }),
+    ];
+
+    const stats = computeStats(rows, [], Units.Metric);
+    expect(stats.averageSpeedDeviation).toBeCloseTo(2);
+    expect(stats.wheelDiameterFactor).toBeCloseTo(1.1);
+    expect(stats.highestGpsSpeed).toBe(22);
+    expect(stats.totalDistance).toBeCloseTo(0.1);
+  });
+
+  test('calculates time-weighted average controller speed while moving above zero, excluding stops', () => {
+    const rows = [
+      makeRow({ index: 0, time: 0, speed: 10 }),
+      makeRow({ index: 1, time: 10, speed: 10 }),
+      makeRow({ index: 2, time: 20, speed: 0 }),
+      makeRow({ index: 3, time: 30, speed: 0 }),
+      makeRow({ index: 4, time: 40, speed: 10 }),
+    ];
+
+    const stats = computeStats(rows, []);
+    expect(stats.averageSpeed).toBeCloseTo(6);
+    expect(stats.averageMovingSpeed).toBeCloseTo(20 / 3);
+  });
+
+  test('includes low but nonzero speeds in the moving average', () => {
+    const rows = [
+      makeRow({ index: 0, time: 0, speed: 10 }),
+      makeRow({ index: 1, time: 10, speed: 10 }),
+      makeRow({ index: 2, time: 20, speed: 0 }),
+      makeRow({ index: 3, time: 30, speed: 0.1 }),
+      makeRow({ index: 4, time: 40, speed: 10 }),
+    ];
+
+    expect(computeStats(rows, []).averageMovingSpeed).toBeCloseTo(5.025);
+  });
+
+  test('reports selected moving-average current and power maxima separately from raw peaks and regen', () => {
+    const motorCurrents = [20, 20, 20, 20, 20, 100, 0, 0, 0, 0, -30, -30, -30, -30, -30];
+    const rows = motorCurrents.map((current_motor, index) =>
+      makeRow({
+        index,
+        time: index,
+        voltage: 100,
+        duty: 50,
+        current_motor,
+        current_battery: current_motor / 10,
+      }),
+    );
+
+    const stats = computeStats(rows, [], Units.Metric, 5);
+    expect(stats.highestMotorCurrent).toBeCloseTo(36);
+    expect(stats.peakMotorCurrent).toBe(100);
+    expect(stats.highestMotorRegenCurrent).toBe(30);
+    expect(stats.peakMotorRegenCurrent).toBe(30);
+    expect(stats.highestMotorPower).toBeCloseTo(1800);
+    expect(stats.peakMotorPower).toBe(5000);
+    expect(stats.highestMotorRegenPower).toBe(1500);
+    expect(stats.highestBatteryCurrent).toBeCloseTo(3.6);
+    expect(stats.peakBatteryCurrent).toBe(10);
+    expect(stats.highestBatteryRegenCurrent).toBe(3);
+    expect(stats.highestBatteryPower).toBeCloseTo(360);
+    expect(stats.highestBatteryRegenPower).toBe(300);
+  });
+
+  test('uses the selected moving-average window for maxima while preserving raw peaks', () => {
+    const rows = [0, 0, 9, 0, 0].map((current_motor, index) => makeRow({ index, time: index, current_motor }));
+
+    const unfiltered = computeStats(rows, [], Units.Metric, 1);
+    const movingAverage = computeStats(rows, [], Units.Metric, 3);
+
+    expect(unfiltered.highestMotorCurrent).toBe(9);
+    expect(movingAverage.highestMotorCurrent).toBe(3);
+    expect(unfiltered.peakMotorCurrent).toBe(9);
+    expect(movingAverage.peakMotorCurrent).toBe(9);
+  });
+
+  test('does not compare GPS calibration below 5 km/h or across long gaps', () => {
+    const rows = [
+      makeRow({ index: 0, time: 0, speed: 2, gps_speed: 10 }),
+      makeRow({ index: 1, time: 10, speed: 2, gps_speed: 10 }),
+      makeRow({ index: 2, time: 100, speed: 20, gps_speed: 22 }),
+    ];
+
+    const stats = computeStats(rows, []);
+    expect(stats.averageSpeedDeviation).toBeNaN();
+    expect(stats.wheelDiameterFactor).toBeNaN();
   });
 });

@@ -25,6 +25,7 @@ const headerMap: Record<string, RowKey> = {
   temp_mos_max: RowKey.TempMosfet,
   temp_motor: RowKey.TempMotor,
   watt_hours_used: RowKey.Wh,
+  watt_hours_charged: RowKey.WhCharged,
 };
 
 const parseFloatValue = (input: string): number => {
@@ -95,6 +96,7 @@ function normalizeRow(row: Partial<Row>): Row {
     [RowKey.TruePitch]: row.true_pitch ?? row.pitch ?? 0,
     [RowKey.Voltage]: row.voltage ?? 0,
     [RowKey.Wh]: row.wh ?? 0,
+    [RowKey.WhCharged]: row.wh_charged,
   };
 }
 

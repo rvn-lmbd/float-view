@@ -77,6 +77,26 @@ describe(findPointsOfInterest.name, () => {
 });
 
 describe(computeStats.name, () => {
+  test('reports energy use and regeneration from logged counters, with battery power as a fallback', () => {
+    const counterRows = [
+      makeRow({ index: 0, time: 0, wh: 10, wh_charged: 2, voltage: 100, current_battery: 10, distance: 0 }),
+      makeRow({ index: 1, time: 10, wh: 12.5, wh_charged: 2.75, voltage: 100, current_battery: 10, distance: 1 }),
+    ];
+    const fromCounters = computeStats(counterRows, []);
+    expect(fromCounters.energyUsedWh).toBeCloseTo(2.5);
+    expect(fromCounters.energyRegeneratedWh).toBeCloseTo(0.75);
+    expect(fromCounters.netEnergyWh).toBeCloseTo(1.75);
+    expect(fromCounters.netWhPerKm).toBeCloseTo(1.75);
+
+    const integratedRows = [
+      makeRow({ index: 0, time: 0, voltage: 100, current_battery: 10, distance: 0 }),
+      makeRow({ index: 1, time: 10, voltage: 100, current_battery: 10, distance: 1 }),
+      makeRow({ index: 2, time: 20, voltage: 100, current_battery: -10, distance: 1 }),
+    ];
+    const fromPower = computeStats(integratedRows, []);
+    expect(fromPower.energyUsedWh).toBeCloseTo(3.472222, 5);
+    expect(fromPower.energyRegeneratedWh).toBeCloseTo(0.694444, 5);
+  });
   test('calculates GPS/controller deviation and the VESC wheel-diameter multiplier', () => {
     const rows = [
       makeRow({ index: 0, time: 0, speed: 20, gps_speed: 22, distance: 1.5 }),

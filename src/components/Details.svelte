@@ -313,6 +313,19 @@
       <List
         items={[
           {
+            {
+              label: 'Energy Used',
+              value: `${formatFloat(stats.energyUsedWh)} Wh`,
+              htmlTitle: 'Uses the logged Wh counter when available; otherwise integrates positive battery power.',
+            },
+            {
+              label: 'Energy Regenerated',
+              value: `${formatFloat(stats.energyRegeneratedWh)} Wh`,
+              htmlTitle:
+                'Uses the logged Wh Charged counter when available; otherwise integrates negative battery power.',
+            },
+            { label: 'Net Energy', value: `${formatFloat(stats.netEnergyWh)} Wh` },
+            { label: 'Net Efficiency', value: `${formatFloat(stats.netWhPerKm)} Wh/km` },
             label: 'Highest Battery Current',
             value: formatWithPeak(stats.highestBatteryCurrent, stats.peakBatteryCurrent, ' A'),
             color: ChartColours.CurrentBattery,

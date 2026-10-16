@@ -1,5 +1,6 @@
 import { DataSource, State, Units, type RowWithIndex } from '../lib/parse/types';
 import settings from '../lib/settings.svelte';
+import { calculateBatteryEnergyTotals } from '../lib/energy';
 import { smoothChartValues } from '../lib/smoothing';
 import type { PointOfInterest } from './Map';
 
@@ -56,6 +57,10 @@ export interface RideStats {
   peakGpsSpeed: number;
   averageSpeedDeviation: number;
   wheelDiameterFactor: number;
+  energyUsedWh: number;
+  energyRegeneratedWh: number;
+  netEnergyWh: number;
+  netWhPerKm: number;
 }
 
 const MAX_STATS_SAMPLE_GAP_SECONDS = 60;
@@ -224,6 +229,9 @@ export function computeStats(
   const wheelDiameterFactor =
     controllerDistanceForCalibration > 0 ? gpsDistanceForCalibration / controllerDistanceForCalibration : NaN;
   const rawDistance = Math.max(0, (rows.at(-1)?.distance ?? 0) - (rows[0]?.distance ?? 0));
+  const energyTotals = calculateBatteryEnergyTotals(rows, MAX_STATS_SAMPLE_GAP_SECONDS);
+  const netEnergyWh = energyTotals.energyUsedWh - energyTotals.energyRegeneratedWh;
+  const distanceKm = dataUnits === Units.Imperial ? rawDistance * 1.609344 : rawDistance;
 
   return {
     totalHalfFaults,
@@ -273,6 +281,10 @@ export function computeStats(
     peakGpsSpeed: gpsSpeedExtrema.peakMaximum,
     averageSpeedDeviation,
     wheelDiameterFactor,
+    energyUsedWh: energyTotals.energyUsedWh,
+    energyRegeneratedWh: energyTotals.energyRegeneratedWh,
+    netEnergyWh,
+    netWhPerKm: distanceKm > 0 ? netEnergyWh / distanceKm : NaN,
   };
 }
 

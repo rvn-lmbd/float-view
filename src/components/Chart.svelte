@@ -111,6 +111,8 @@
     yAxis,
     showMax,
     showMin,
+    description = '',
+    emptyMessage = 'no data',
   }: Props = $props();
   let smoothedData = $derived(
     data.map((line) => ({ ...line, values: smoothChartValues(line.values, smoothingFrames, gapIndices) })),
@@ -300,6 +302,7 @@
 <div
   use:onCreateContainer
   data-testid="chart_{title.toLowerCase().replace(/\s/g, '_')}"
+  title={description}
   class="relative"
   style:width="calc(100% - {MARGIN_LEFT} - {MARGIN_RIGHT})"
   style:height="calc(100% - {MARGIN_BOTTOM} - {MARGIN_TOP})"
@@ -520,7 +523,7 @@
       {/if}
     {:else}
       <div class="w-full flex flex-rol justify-between items-center gap-4" style:color="grey">
-        <span>no data</span>
+        <span>{emptyMessage}</span>
       </div>
     {/if}
   </div>

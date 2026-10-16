@@ -1,6 +1,11 @@
 import { z } from 'zod';
 import { State, Units } from './parse/types';
 import { type ChartKey } from '../components/Chart';
+import {
+  DEFAULT_FOOTPAD_FAULT_DEBOUNCE_MS,
+  DEFAULT_FOOTPAD_THRESHOLD_VOLTS,
+  normalizeFootpadThreshold,
+} from './footpad';
 
 type SelectedCharts = [ChartKey, ChartKey, ChartKey, ChartKey, ChartKey, ChartKey];
 export const defaultSelectedCharts = Object.freeze([
@@ -29,6 +34,8 @@ const SavedSettingsSchema = z.object({
   chartSpacingByTime: z.boolean().default(false),
   units: UnitsSchema,
   charts: z.string().array(),
+  footpadThresholdVolts: z.number().finite().min(0).max(3.3).catch(DEFAULT_FOOTPAD_THRESHOLD_VOLTS),
+  footpadFaultDebounceMs: z.number().finite().min(0).max(2000).catch(DEFAULT_FOOTPAD_FAULT_DEBOUNCE_MS),
 });
 type ZSavedSettings = z.infer<typeof SavedSettingsSchema>;
 
@@ -62,6 +69,11 @@ const settings = new (class {
   /** user-defined cell max voltage */
   cellMaxVolt = $state<number | undefined>(savedSettings?.batterySpecs.cellMaxVolt ?? undefined);
 
+  /** ADC voltage below which a footpad is treated as inactive */
+  footpadThresholdVolts = $state(savedSettings?.footpadThresholdVolts ?? DEFAULT_FOOTPAD_THRESHOLD_VOLTS);
+  /** How long an at-speed footpad fault must persist before it is recorded as an event. */
+  footpadFaultDebounceMs = $state(savedSettings?.footpadFaultDebounceMs ?? DEFAULT_FOOTPAD_FAULT_DEBOUNCE_MS);
+
   /** user selected charts */
   charts = $state<SelectedCharts>((savedSettings?.charts as SelectedCharts) ?? [...defaultSelectedCharts]);
 
@@ -82,6 +94,7 @@ const settings = new (class {
     cellMinVolt: this.cellMinVolt,
     cellMaxVolt: this.cellMaxVolt,
   });
+  footpadThreshold = $derived(normalizeFootpadThreshold(this.footpadThresholdVolts));
 
   /** serialised settings */
   storedSettings = $derived(
@@ -92,8 +105,11 @@ const settings = new (class {
       chartSpacingByTime: this.chartSpacingByTime,
       units: this.units,
       charts: this.charts,
+      footpadThresholdVolts: this.footpadThreshold,
+      footpadFaultDebounceMs: this.footpadFaultDebounceMs,
     } satisfies ZSavedSettings),
   );
 })();
 
 export default settings;
+

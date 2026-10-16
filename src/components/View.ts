@@ -1,5 +1,6 @@
 import { DataSource, State, type RowWithIndex } from '../lib/parse/types';
 import settings from '../lib/settings.svelte';
+import { footpadIsActive } from '../lib/footpad';
 import type { PointOfInterest } from './Map';
 
 export interface Banner {
@@ -118,6 +119,8 @@ export function computeStats(rows: RowWithIndex[], pois: PointOfInterest[]): Rid
 
 export const RIDE_GAP_THRESHOLD_SECONDS = 60;
 export const CHARGE_THRESHOLD_SECONDS = 600;
+const MAX_STATS_SAMPLE_GAP_SECONDS = 60;
+const MAX_FOOTPAD_FAULT_GAP_SECONDS = 1;
 const DEFAULT_CHARGE_THRESHOLD_VOLTS = 2.5;
 
 export const getChargeThreshold = () => {
@@ -192,27 +195,74 @@ export function hasAdcTelemetry(rows: RowWithIndex[]): boolean {
   return rows.some((row) => row.adc1 !== 0 || row.adc2 !== 0);
 }
 
-export function findPointsOfInterest(rows: RowWithIndex[]): PointOfInterest[] {
+export function findPointsOfInterest(
+  rows: RowWithIndex[],
+  footpadThresholdVolts = settings.footpadThreshold,
+  footpadFaultDebounceMs = settings.footpadFaultDebounceMs,
+  hiddenStates: readonly State[] = settings.hiddenStates,
+): PointOfInterest[] {
   const points: PointOfInterest[] = [];
   const adcFaultsEnabled = hasAdcTelemetry(rows);
+  const addVisiblePoint = (index: number, state: string) => {
+    if (!hiddenStates.includes(state as State)) points.push({ index, state });
+  };
+
+  // VESC records the same state on every frame; map only the start of each event.
+  let previousVescState: string = State.Riding;
+  let footpadFaultState: State.Custom_OneFootpadAtSpeed | State.Custom_NoFootpadsAtSpeed | undefined;
+  let footpadFaultStartIndex = -1;
+  let footpadFaultStartTime = Number.NaN;
+  let footpadFaultLastTime = Number.NaN;
+  const debounceSeconds = Math.max(0, footpadFaultDebounceMs) / 1000;
+  const flushFootpadFault = () => {
+    if (footpadFaultState && footpadFaultLastTime - footpadFaultStartTime >= debounceSeconds) {
+      addVisiblePoint(footpadFaultStartIndex, footpadFaultState);
+    }
+    footpadFaultState = undefined;
+    footpadFaultStartIndex = -1;
+    footpadFaultStartTime = Number.NaN;
+    footpadFaultLastTime = Number.NaN;
+  };
+
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i]!;
-
-    let states: string[] = [];
-
-    // fault from VESC
-    if (row.state !== 'riding') {
-      states.push(row.state);
+    const gapFromPrevious = i > 0 ? row.time - rows[i - 1]!.time : 0;
+    if (i === 0 || gapFromPrevious > MAX_STATS_SAMPLE_GAP_SECONDS || gapFromPrevious <= 0) {
+      previousVescState = State.Riding;
     }
+    if (row.state !== State.Riding && row.state !== previousVescState) addVisiblePoint(i, row.state);
+    previousVescState = row.state;
 
     // custom footpad faults
+    let currentFootpadFault: State.Custom_OneFootpadAtSpeed | State.Custom_NoFootpadsAtSpeed | undefined;
     if (adcFaultsEnabled && row.speed > 2) {
-      const combinedAdcVoltage = row.adc1 + row.adc2;
-      if (combinedAdcVoltage < 2) {
-        states.push(State.Custom_NoFootpadsAtSpeed);
-      } else if (combinedAdcVoltage < 4) {
-        states.push(State.Custom_OneFootpadAtSpeed);
+      const activeFootpads =
+        Number(footpadIsActive(row.adc1, footpadThresholdVolts)) +
+        Number(footpadIsActive(row.adc2, footpadThresholdVolts));
+      if (activeFootpads === 0) {
+        currentFootpadFault = State.Custom_NoFootpadsAtSpeed;
+      } else if (activeFootpads === 1) {
+        currentFootpadFault = State.Custom_OneFootpadAtSpeed;
       }
+    }
+
+    const faultGap = row.time - footpadFaultLastTime;
+    if (
+      footpadFaultState &&
+      (currentFootpadFault !== footpadFaultState ||
+        !Number.isFinite(faultGap) ||
+        faultGap <= 0 ||
+        faultGap > MAX_FOOTPAD_FAULT_GAP_SECONDS)
+    ) {
+      flushFootpadFault();
+    }
+    if (currentFootpadFault) {
+      if (!footpadFaultState) {
+        footpadFaultState = currentFootpadFault;
+        footpadFaultStartIndex = i;
+        footpadFaultStartTime = row.time;
+      }
+      footpadFaultLastTime = row.time;
     }
 
     // inferred charge points
@@ -221,18 +271,13 @@ export function findPointsOfInterest(rows: RowWithIndex[]): PointOfInterest[] {
       const secondsElapsed = row.time - prevRow.time;
       const voltageDifference = row.voltage - prevRow.voltage;
       if (secondsElapsed > CHARGE_THRESHOLD_SECONDS && voltageDifference > getChargeThreshold()) {
-        states.push(State.Custom_ChargePoint);
-      }
-    }
-
-    // SAFETY: since the enum is non-exhaustive, just check it's not in here so
-    // any ones we don't know about are shown
-    for (const state of states) {
-      if (!settings.hiddenStates.includes(state as State)) {
-        points.push({ index: i, state });
+        addVisiblePoint(i, State.Custom_ChargePoint);
       }
     }
   }
 
+  flushFootpadFault();
+  points.sort((a, b) => a.index - b.index);
   return points;
 }
+

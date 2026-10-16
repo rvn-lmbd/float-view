@@ -42,5 +42,12 @@ Floaty GPS altitudes are converted from WGS84 ellipsoidal heights to approximate
 
 The EGM96 grid is distributed by [GeographicLib](https://geographiclib.sourceforge.io/C++/doc/geoid.html) using [NGA public-domain data](https://github.com/OSGeo/PROJ-data/blob/master/us_nga/us_nga_README.txt).
 
+
+## Footpad fault analysis
+
+The **Settings → Footpad Sensors** threshold mirrors Refloat's **ADC1 Switch Voltage** (fault_adc1) and **ADC2 Switch Voltage** (fault_adc2) under **Refloat Cfg → General → Specs → Foot Sensors**. Both default to **2 V** in Refloat. Ride exports do not contain the controller's configured threshold, so adjust this browser setting if your board uses different values.
+
+Fault confirmation corresponds to **Half Switch Fault Delay** (fault_delay_switch_half) and **Full Switch Fault Delay** (fault_delay_switch_full) under **Refloat Cfg → General → Stop → Switches**; both default to **250 ms**. Refloat stores these delays separately, while Float View uses one shared delay only to filter recorded map markers. It does not change controller behavior.
+
 [Float Control]: https://apps.apple.com/us/app/float-control-vesc-companion/id1590924299
 [Floaty]: https://play.google.com/store/apps/details?id=com.floaty.floatyapp&pcampaignid=web_share

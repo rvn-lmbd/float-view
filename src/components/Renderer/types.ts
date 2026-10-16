@@ -17,6 +17,7 @@ export type WorkerCommandDef = {
     boardPosition3d: BoardPosition3d;
     boardPosition3dRaised: boolean;
     use3dRenderer: boolean;
+    footpadThresholdVolts: number;
     data: RowWithIndex;
   };
   file: {
@@ -39,6 +40,7 @@ export type WorkerCommandDef = {
     fps: number;
     width: number;
     height: number;
+    footpadThresholdVolts: number;
   };
   update: {};
   stop: {};
@@ -121,6 +123,7 @@ export interface RendererOptions {
   boardPosition3dRaised: boolean;
 
   drawRemoteTilt: boolean;
+  footpadThresholdVolts: number;
   images: Record<string, ImageBitmap>;
 }
 
@@ -136,3 +139,4 @@ export interface Renderer {
   draw(data: RowWithIndex): Promise<void>;
   close(): void;
 }
+

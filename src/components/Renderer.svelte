@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import settings from '../lib/settings.svelte';
   import { demoFile, demoRow } from '../lib/parse/float-control';
   import { RowKey } from '../lib/parse/types';
   import type { RowWithIndex } from '../lib/parse/types';
@@ -431,6 +432,7 @@
         boardPosition3dRaised: boardPosition3dRaised.v,
         interpolate: interpolate.v,
         drawRemoteTilt: showRemoteTilt.v,
+        footpadThresholdVolts: settings.footpadThreshold,
         use3dRenderer: use3dRenderer.v,
         filename,
       },
@@ -484,6 +486,7 @@
             boardPosition3d: boardPosition3d.v,
             boardPosition3dRaised: boardPosition3dRaised.v,
             drawRemoteTilt: showRemoteTilt.v,
+            footpadThresholdVolts: settings.footpadThreshold,
             images,
           },
           use3dRenderer.v,
@@ -507,6 +510,7 @@
             boardPosition3d: boardPosition3d.v,
             boardPosition3dRaised: boardPosition3dRaised.v,
             drawRemoteTilt: showRemoteTilt.v,
+            footpadThresholdVolts: settings.footpadThreshold,
             use3dRenderer: use3dRenderer.v,
           },
           [offscreen],
@@ -1123,8 +1127,9 @@
   {/if}
 
   <div class="flex flex-row justify-center align-center">
-    <a href="/float-view/?app=view">
+    <a href="?app=view">
       <Button>Looking for Float View? Click here!</Button>
     </a>
   </div>
 </div>
+

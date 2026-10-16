@@ -35,6 +35,8 @@ export const LogSchema = z.object({
   pitchAngle: z.number().nullable(),
   remainingDistance: z.number().nullable(),
   rollAngle: z.number().nullable(),
+  /** Optional in newer/variant exports; absent in the supplied Floaty frame. */
+  setpoint: z.number().nullable().optional(),
   setpointAdjustmentType: z.number().nullable(),
   /** Floaty sets to null when it fails to read */
   speed: z.number().nullable(),
@@ -61,3 +63,4 @@ export const FloatyJsonSchema = z.object({
   locations: LocationSchema.array(),
   logs: LogSchema.array(),
 });
+

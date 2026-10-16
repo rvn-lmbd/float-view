@@ -10,13 +10,13 @@
   import type { MouseEventHandler, TouchEventHandler } from 'svelte/elements';
   import { assert, formatFloat } from '../lib/misc';
   import { untrack } from 'svelte';
-  import { type Props, ticks } from './Chart';
+  import { formatAxisTick, smoothChartValues, type Props, ticks } from './Chart';
 
   const DEFAULT_COLOUR = 'white';
 
   const MARGIN_TOP = '4rem';
   const MARGIN_RIGHT = '2rem';
-  const MARGIN_LEFT = '4rem';
+  const MARGIN_LEFT = '3.5rem';
   const MARGIN_BOTTOM = '3rem';
 
   const ZERO_LINE_COLOUR = '#aaa';
@@ -75,15 +75,33 @@
   type ReduceWithIndex<T> = { index: number; value: T } | null;
   const reduceWithIndex = <T,>(arr: T[], cmp: (curr: T, next: T) => boolean): ReduceWithIndex<T> =>
     arr.reduce<ReduceWithIndex<T>>((result, value, index) => {
+      if (typeof value === 'number' && !Number.isFinite(value)) return result;
       if (!result) return { index, value };
       if (cmp(result!.value, value)) return { index, value };
       return result!;
     }, null);
 
+  const createLinePath = (values: number[], xPositions: number[], min: number, max: number, scale: number) => {
+    let path = '';
+    let startSegment = true;
+    values.forEach((value, index) => {
+      if (!Number.isFinite(value)) {
+        startSegment = true;
+        return;
+      }
+      const x = (xPositions[index] ?? 50) * scale;
+      const y = valueToYPct(value, min, max) * scale;
+      path += `${startSegment ? 'M' : 'L'}${x},${y}`;
+      startSegment = false;
+    });
+    return path;
+  };
+
   let {
     data,
     xValues,
     spacingByTime = false,
+    smoothingFrames = 1,
     selectedIndex,
     setSelectedIdx,
     gapIndices,
@@ -93,7 +111,13 @@
     yAxis,
     showMax,
     showMin,
+    description = '',
+    emptyMessage = 'no data',
   }: Props = $props();
+  let smoothedData = $derived(
+    data.map((line) => ({ ...line, values: smoothChartValues(line.values, smoothingFrames, gapIndices) })),
+  );
+  let hasFiniteData = $derived(smoothedData.some((line) => line.values.some(Number.isFinite)));
   let dataLen = $derived(data[0]?.values.length ?? 0);
   $effect(() =>
     assert(
@@ -124,9 +148,7 @@
   let selectedXPct = $derived(pointXPcts[selectedDataPointIndex] ?? 50);
   let selectedX = $derived(selectedXPct * scaleFactor);
   /** ticks for the y-axis */
-  let yTicks: [number, string][] = $derived(
-    ticks(dataPoints.flat(), yAxis).map((n) => [n, `${Number.isInteger(n) ? n : n.toFixed(1)}${unit}`]),
-  );
+  let yTicks: [number, string][] = $derived(ticks(dataPoints.flat(), yAxis).map((n) => [n, formatAxisTick(n)]));
   let yTickMin = $derived(Math.min(...yTicks.map(([n]) => n)));
   let yTickMax = $derived(Math.max(...yTicks.map(([n]) => n)));
   let minTickY = $derived((valueToYPct(yTickMin, yTickMin, yTickMax) - 0.5) * scaleFactor);
@@ -136,12 +158,13 @@
     chunkSize = Math.max(1, Math.floor(dataLen / pixelWidth));
     scaleFactor = pixelWidth / 100;
 
-    dataPoints = data.map(({ values }) => {
+    dataPoints = smoothedData.map(({ values }) => {
       const aggregated: number[] = [];
       for (let i = 0; i < values.length; i += chunkSize) {
         const chunk = values.slice(i, i + chunkSize);
         if (chunk.length) {
-          aggregated.push(chunk.reduce(aggMaxAbs));
+          const finiteValues = chunk.filter(Number.isFinite);
+          aggregated.push(finiteValues.length ? finiteValues.reduce(aggMaxAbs) : Number.NaN);
         }
       }
 
@@ -186,6 +209,8 @@
     yAxis; // re-render chart when this changes
     spacingByTime;
     xValues;
+    smoothingFrames;
+    gapIndices;
     if (data) {
       untrack(() => renderChart(svg!.getBoundingClientRect().width));
     }
@@ -277,7 +302,8 @@
 <div
   use:onCreateContainer
   data-testid="chart_{title.toLowerCase().replace(/\s/g, '_')}"
-  class="relative w-full"
+  class="relative"
+  style:width="calc(100% - {MARGIN_LEFT} - {MARGIN_RIGHT})"
   style:height="calc(100% - {MARGIN_BOTTOM} - {MARGIN_TOP})"
   style:margin-left={MARGIN_LEFT}
   style:margin-right={MARGIN_RIGHT}
@@ -299,7 +325,7 @@
     {ontouchmove}
   >
     <g>
-      {#if dataPointsLen > 0}
+      {#if dataPointsLen > 0 && hasFiniteData}
         <!-- horizontal grid lines -->
         <g>
           <line
@@ -356,13 +382,7 @@
           <path
             fill="none"
             stroke={data[i]?.color ?? DEFAULT_COLOUR}
-            d="M{values
-              .map((y, i) => {
-                const pixelX = (pointXPcts[i] ?? 50) * scaleFactor;
-                const pixelY = valueToYPct(Number.isNaN(y) ? 0 : y, yTickMin, yTickMax) * scaleFactor;
-                return `${pixelX},${pixelY}`;
-              })
-              .join('L')}"
+            d={createLinePath(values, pointXPcts, yTickMin, yTickMax, scaleFactor)}
           />
         {/each}
 
@@ -405,10 +425,21 @@
       style:top="-{MARGIN_TOP}"
       style:left="-{MARGIN_LEFT}"
       style:right="-{MARGIN_RIGHT}"
+      title={description}
     >
-      {title}
+      {title}{#if unit.trim()}
+        {' '}({unit.trim()}){/if}
+      {#if smoothedData.some((line) => line.label)}
+        <div class="flex flex-row flex-wrap justify-center gap-x-3 font-mono text-[10px] font-normal">
+          {#each smoothedData as line}
+            {#if line.label}
+              <span style:color={line.color}>{line.label}</span>
+            {/if}
+          {/each}
+        </div>
+      {/if}
       <div class="flex flex-row gap-2 justify-center items-center font-mono text-xs">
-        {#each data as line, i}
+        {#each smoothedData as line, i}
           {#if line.values.length > 0}
             {@const min = reduceWithIndex(line.values, (curr, next) => next < curr)}
             {@const max = reduceWithIndex(line.values, (curr, next) => next > curr)}
@@ -456,9 +487,6 @@
 
   <!-- y-axis ticks -->
   <div>
-    <div class="absolute bottom-full right-full text-right mb-4 mr-4 font-bold">
-      <!-- tick title can go here -->
-    </div>
     {#each yTicks as [value, label] (value)}
       <div
         class="absolute left-0 w-[1px] h-[1px] leading-[1px] whitespace-nowrap text-sm translate-x-[-0.5rem]"
@@ -479,24 +507,25 @@
       flex flex-col justify-center items-center pointer-events-none"
     style:left="{selectedXPct}%"
   >
-    {#if dataPointsLen > 0}
+    {#if hasFiniteData}
       {#if selectedDataPointIndex > -1}
-        {#each data as _, i}
+        {#each smoothedData as _, i}
           <div
             class="w-full flex flex-rol justify-between items-center gap-4"
-            style:color={data[i]?.color ?? DEFAULT_COLOUR}
+            style:color={smoothedData[i]?.color ?? DEFAULT_COLOUR}
           >
-            {#if data[i]?.label}
-              <span>{data[i]?.label + ':'}</span>
+            {#if smoothedData[i]?.label}
+              <span>{smoothedData[i]?.label + ':'}</span>
             {/if}
-            <span>{formatValue(data[i]?.values[selectedIndex])}</span>
+            <span>{formatValue(smoothedData[i]?.values[selectedIndex])}</span>
           </div>
         {/each}
       {/if}
     {:else}
       <div class="w-full flex flex-rol justify-between items-center gap-4" style:color="grey">
-        <span>no data</span>
+        <span>{emptyMessage}</span>
       </div>
     {/if}
   </div>
 </div>
+

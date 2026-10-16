@@ -43,6 +43,7 @@
       bind:checked
     />
   {:else}
-    <input class="bg-slate-900 border rounded px-2 py min-w-24 {alignClass}" {...rest} {id} bind:value />
+    <input class="bg-slate-900 border rounded px-2 py min-w-24 {alignClass}" {...rest} {id} {type} bind:value />
   {/if}
 </div>
+

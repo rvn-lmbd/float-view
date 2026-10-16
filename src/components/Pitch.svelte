@@ -30,8 +30,10 @@
 <div class="flex flex-col justify-center items-center w-[50%] font-mono">
   <List
     items={[
-      { label: 'Pitch', value: `${formatFloat(data.true_pitch)}°` },
+      { label: 'Pitch', value: `${formatFloat(data.pitch)}°` },
+      { label: 'True Pitch', value: `${formatFloat(data.true_pitch)}°` },
       { label: 'Set point', value: `${formatFloat(data.setpoint)}°` },
     ]}
   />
 </div>
+

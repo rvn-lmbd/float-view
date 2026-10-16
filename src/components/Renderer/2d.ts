@@ -2,6 +2,7 @@ import { RowKey, State, type RowWithIndex } from '../../lib/parse/types';
 import type { CreateRenderer } from './types';
 import type { Canvas, Ctx } from './svg';
 import { FONT_FAMILY } from './render';
+import { footpadIsActive } from '../../lib/footpad';
 
 const colors = {
   fg: '#ffffff',
@@ -62,14 +63,18 @@ export interface DrawParams {
   drawBackground?: boolean;
   drawBoard?: boolean;
   drawRemoteTilt?: boolean;
+  footpadThresholdVolts: number;
 }
 
-export const create2dRenderer: CreateRenderer = async (canvas, { backgroundColor, drawRemoteTilt, images }) => {
+export const create2dRenderer: CreateRenderer = async (
+  canvas,
+  { backgroundColor, drawRemoteTilt, footpadThresholdVolts, images },
+) => {
   const ctx = canvas.getContext('2d')! as Ctx;
   return {
     close: () => {},
     draw: (data: RowWithIndex) =>
-      Promise.resolve(draw2d({ canvas, ctx, data, backgroundColor, drawRemoteTilt, images })),
+      Promise.resolve(draw2d({ canvas, ctx, data, backgroundColor, drawRemoteTilt, footpadThresholdVolts, images })),
   };
 };
 
@@ -83,6 +88,7 @@ export function draw2d({
   drawBoard = true,
   drawBackground = true,
   drawRemoteTilt = false,
+  footpadThresholdVolts,
 }: DrawParams) {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -161,6 +167,7 @@ export function draw2d({
     h: gaugeHeight,
     adc1: data[RowKey.Adc1],
     adc2: data[RowKey.Adc2],
+    footpadThresholdVolts,
     speed: data[RowKey.Speed],
     state: data[RowKey.State],
   });
@@ -442,16 +449,25 @@ function drawValueBox({ label, ctx, x, y, w, h, value, unit }: ValueBoxParams) {
 interface FootpadParams extends BaseParams {
   adc1: number;
   adc2: number;
+  footpadThresholdVolts: number;
   speed: number;
   state: string;
 }
 
 function drawFootpad(params: FootpadParams) {
-  const { ctx, adc1, adc2, speed, state } = params;
+  const { ctx, adc1, adc2, speed, state, footpadThresholdVolts } = params;
 
   const isSlow = Math.abs(speed) < 2;
-  const adc1Color = adc1 < 2 ? (isSlow ? colors.inactive : colors.error) : colors.primary;
-  const adc2Color = adc2 < 2 ? (isSlow ? colors.inactive : colors.error) : colors.primary;
+  const adc1Color = footpadIsActive(adc1, footpadThresholdVolts)
+    ? colors.primary
+    : isSlow
+      ? colors.inactive
+      : colors.error;
+  const adc2Color = footpadIsActive(adc2, footpadThresholdVolts)
+    ? colors.primary
+    : isSlow
+      ? colors.inactive
+      : colors.error;
 
   {
     const x = params.x;
@@ -588,3 +604,4 @@ export function drawVideoOverlayHud(ctx: Ctx, width: number, height: number, opt
     ctx.fillText(value, px + boxWidth - pad * 0.5, py + boxHeight / 2);
   }
 }
+

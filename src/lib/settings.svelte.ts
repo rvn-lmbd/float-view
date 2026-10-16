@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { State, Units } from './parse/types';
 import { type ChartKey } from '../components/Chart';
+import { DEFAULT_FOOTPAD_THRESHOLD_VOLTS, normalizeFootpadThreshold } from './footpad';
 
 type SelectedCharts = [ChartKey, ChartKey, ChartKey, ChartKey, ChartKey, ChartKey];
 export const defaultSelectedCharts = Object.freeze([
@@ -27,8 +28,11 @@ const SavedSettingsSchema = z.object({
   hiddenStates: HiddenStateSchema,
   mapIconsGreyscale: z.boolean().default(false),
   chartSpacingByTime: z.boolean().default(false),
+  chartSmoothingFrames: z.union([z.literal(1), z.literal(3), z.literal(5), z.literal(9), z.literal(15)]).default(1),
   units: UnitsSchema,
   charts: z.string().array(),
+  footpadThresholdVolts: z.number().finite().min(0).max(3.3).catch(DEFAULT_FOOTPAD_THRESHOLD_VOLTS),
+  footpadFaultDebounceMs: z.number().finite().min(0).max(2000).catch(250),
 });
 type ZSavedSettings = z.infer<typeof SavedSettingsSchema>;
 
@@ -62,6 +66,11 @@ const settings = new (class {
   /** user-defined cell max voltage */
   cellMaxVolt = $state<number | undefined>(savedSettings?.batterySpecs.cellMaxVolt ?? undefined);
 
+  /** ADC voltage below which a footpad is treated as inactive */
+  footpadThresholdVolts = $state(savedSettings?.footpadThresholdVolts ?? DEFAULT_FOOTPAD_THRESHOLD_VOLTS);
+  /** How long an at-speed footpad fault must persist before it is recorded as an event. */
+  footpadFaultDebounceMs = $state(savedSettings?.footpadFaultDebounceMs ?? 250);
+
   /** user selected charts */
   charts = $state<SelectedCharts>((savedSettings?.charts as SelectedCharts) ?? [...defaultSelectedCharts]);
 
@@ -70,6 +79,9 @@ const settings = new (class {
 
   /** whether chart x-axis spacing should be proportional to time */
   chartSpacingByTime = $state(savedSettings?.chartSpacingByTime ?? false);
+
+  /** centered moving-average window used to smooth chart lines; 1 disables smoothing */
+  chartSmoothingFrames = $state<1 | 3 | 5 | 9 | 15>(savedSettings?.chartSmoothingFrames ?? 1);
 
   /*
    * derived state
@@ -82,6 +94,7 @@ const settings = new (class {
     cellMinVolt: this.cellMinVolt,
     cellMaxVolt: this.cellMaxVolt,
   });
+  footpadThreshold = $derived(normalizeFootpadThreshold(this.footpadThresholdVolts));
 
   /** serialised settings */
   storedSettings = $derived(
@@ -90,10 +103,14 @@ const settings = new (class {
       hiddenStates: this.hiddenStates,
       mapIconsGreyscale: this.mapIconsGreyscale,
       chartSpacingByTime: this.chartSpacingByTime,
+      chartSmoothingFrames: this.chartSmoothingFrames,
       units: this.units,
       charts: this.charts,
+      footpadThresholdVolts: this.footpadThreshold,
+      footpadFaultDebounceMs: this.footpadFaultDebounceMs,
     } satisfies ZSavedSettings),
   );
 })();
 
 export default settings;
+

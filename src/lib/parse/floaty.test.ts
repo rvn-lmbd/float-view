@@ -12,8 +12,10 @@ describe(parseFloatyJson.name, () => {
 
     expect(data[0]!.gps_latitude).toBe(-1.0);
     expect(data[0]!.gps_longitude).toBe(1.5);
+    expect(data[0]!.gps_speed).toBeCloseTo(0.23);
     expect(data[1]!.gps_latitude).toBe(-1.1);
     expect(data[1]!.gps_longitude).toBe(1.6);
+    expect(data[1]!.gps_speed).toBeCloseTo(0.77);
     expect(data[2]!.gps_latitude).toBe(-1.1);
     expect(data[2]!.gps_longitude).toBe(1.6);
   });
@@ -56,6 +58,33 @@ describe(parseFloatyJson.name, () => {
     expect(floatyJson.logs[2]!.tripDistance).toBe(0);
     expect(data[1]!.distance).toBe(0.5);
     expect(data[2]!.distance).toBe(data[1]!.distance);
+    expect(data[0]!.setpoint).toBeUndefined();
+  });
+
+  test('does not treat input tilt as setpoint and reads an explicit setpoint when present', async () => {
+    const inputWithFallback = JSON.parse(JSON.stringify(floatyJson));
+    inputWithFallback.logs[0].inputTilt = 12;
+    const fallbackResult = await parseFloatyJson(JSON.stringify(inputWithFallback));
+    expect(fallbackResult.data[0]!.setpoint).toBeUndefined();
+
+    const input = JSON.parse(JSON.stringify(floatyJson));
+    input.logs[0].setpoint = 4.25;
+    input.logs[0].inputTilt = 12;
+
+    const { data } = await parseFloatyJson(JSON.stringify(input));
+    expect(data[0]!.setpoint).toBe(4.25);
+  });
+
+  test('maps pitch fields independently and retains remaining distance', async () => {
+    const input = JSON.parse(JSON.stringify(floatyJson));
+    input.logs[0].pitchAngle = 2.5;
+    input.logs[0].truePitchAngle = 1.75;
+    input.logs[0].remainingDistance = 35.2;
+
+    const { data } = await parseFloatyJson(JSON.stringify(input));
+    expect(data[0]!.pitch).toBe(2.5);
+    expect(data[0]!.true_pitch).toBe(1.75);
+    expect(data[0]!.remaining_distance).toBe(35.2);
   });
 });
 
@@ -72,6 +101,7 @@ describe(parseFloatyCsv.name, () => {
     expect(data[0]!.voltage).toBe(81.9);
     expect(data[0]!.gps_latitude).toBe(-1.0);
     expect(data[0]!.gps_longitude).toBe(1.5);
+    expect(data[0]!.gps_speed).toBeCloseTo(0.23);
     expect(data[0]!.time).toBe(0);
     expect(data[1]!.time).toBe(0.01);
   });
@@ -101,3 +131,4 @@ describe(parseFloatyCsv.name, () => {
     });
   });
 });
+

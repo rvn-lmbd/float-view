@@ -30,6 +30,14 @@ function findValue(logs: ZLog[], index: number, key: keyof ZLog, floatyEmptyValu
   return 0;
 }
 
+function findOptionalValue(logs: ZLog[], index: number, key: keyof ZLog): number | undefined {
+  for (let i = index; i >= 0; i--) {
+    const value = logs[i]![key];
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+  }
+  return undefined;
+}
+
 function mapFloatyLog(logs: ZLog[], location: ZLocation, index: number, startTime: number): Row {
   const log = logs[index]!;
   const state_raw = findValue(logs, index, 'state');
@@ -45,9 +53,12 @@ function mapFloatyLog(logs: ZLog[], location: ZLocation, index: number, startTim
     gps_accuracy: location.accuracy,
     gps_latitude: location.latitude,
     gps_longitude: location.longitude,
+    gps_speed: Number.isFinite(location.speed) ? location.speed : undefined,
     motor_fault: findValue(logs, index, 'faultCode'),
     pitch: findValue(logs, index, 'pitchAngle'),
     roll: findValue(logs, index, 'rollAngle'),
+    remaining_distance: findOptionalValue(logs, index, 'remainingDistance'),
+    setpoint: findOptionalValue(logs, index, 'setpoint'),
     speed: findValue(logs, index, 'speed'),
     state_raw,
     state: stateCodeMap[state_raw] ?? '??',
@@ -111,6 +122,7 @@ function csvRowToLog(row: FloatyCsvRow): ZLog {
     pitchAngle: optionalNumber(row.pitchAngle),
     remainingDistance: optionalNumber(row.remainingDistance),
     rollAngle: optionalNumber(row.rollAngle),
+    setpoint: optionalNumber(row.setpoint),
     setpointAdjustmentType: optionalNumber(row.setpointAdjustmentType),
     speed: optionalNumber(row.speed),
     state: optionalNumber(row.state),
@@ -130,7 +142,7 @@ function csvRowToLocation(row: FloatyCsvRow): ZLocation {
     latitude: requiredNumber(row.latitude),
     longitude: requiredNumber(row.longitude),
     accuracy: requiredNumber(row.accuracy),
-    speed: requiredNumber(row.gpsSpeed),
+    speed: optionalNumber(row.gpsSpeed) ?? Number.NaN,
   };
 }
 
@@ -208,3 +220,4 @@ export async function parseFloatyJson(input: string | File): Promise<ParseResult
     };
   }
 }
+

@@ -2,6 +2,8 @@ import { Units, type RowWithIndex } from '../lib/parse/types';
 import type { Props as ChartProps } from './Chart';
 import settings from '../lib/settings.svelte';
 import { globalState } from '../lib/global.svelte';
+import { calculateEnergyConsumptionSeries, ENERGY_CONSUMPTION_WINDOW_KM } from './View';
+export { smoothChartValues } from '../lib/smoothing';
 
 export interface Props {
   data: {
@@ -11,6 +13,7 @@ export interface Props {
   }[];
   xValues?: number[];
   spacingByTime?: boolean;
+  smoothingFrames?: number;
   selectedIndex: number;
   setSelectedIdx: (index: number) => void;
   gapIndices: number[];
@@ -21,11 +24,14 @@ export interface Props {
   precision?: number;
   showMax?: boolean | 'nonzero';
   showMin?: boolean | 'nonzero';
+  description?: string;
+  emptyMessage?: string;
 }
 
 // https://tailwindcss.com/docs/customizing-colors
 export enum ChartColours {
   Speed = '#fde68a',
+  GpsSpeed = '#38bdf8',
   DutyCycle = '#f472b6',
   BatteryVoltage = '#34d399',
   BatteryWatts = '#eab308',
@@ -34,10 +40,13 @@ export enum ChartColours {
   CurrentBattery = '#a5b4fc',
   TempMotor = '#facc15',
   TempMosfet = '#fb7185',
+  CumulativeEnergy = '#eab308',
+  CurrentEnergy = '#38bdf8',
 }
 
 export type ChartFactoryFn = (
   visibleRows: RowWithIndex[],
+  allRows?: RowWithIndex[],
 ) => Omit<ChartProps, 'title' | 'selectedIndex' | 'setSelectedIdx' | 'gapIndices'>;
 
 export const Charts = {
@@ -46,7 +55,19 @@ export const Charts = {
       {
         values: visibleRows.map((x) => globalState.mapSpeed(x.speed)),
         color: ChartColours.Speed,
+        label: 'Controller',
       },
+      ...(visibleRows.some((x) => Number.isFinite(x.gps_speed))
+        ? [
+            {
+              values: visibleRows.map((x) =>
+                Number.isFinite(x.gps_speed) ? globalState.mapSpeed(x.gps_speed!) : Number.NaN,
+              ),
+              color: ChartColours.GpsSpeed,
+              label: 'GPS',
+            },
+          ]
+        : []),
     ],
     precision: 1,
     unit: settings.units === Units.Metric ? ' km/h' : ' mph',
@@ -104,6 +125,38 @@ export const Charts = {
     showMin: true,
     precision: 1,
   }),
+  'Energy consumption': (visibleRows, allRows = visibleRows) => {
+    const energyPerDistance = calculateEnergyConsumptionSeries(allRows, globalState.unitsFromData);
+    const cumulativeByIndex = new Map(allRows.map((row, index) => [row.index, energyPerDistance.cumulative[index]!]));
+    const currentByIndex = new Map(allRows.map((row, index) => [row.index, energyPerDistance.current[index]!]));
+    const convertsDistanceUnits = settings.units !== globalState.unitsFromData;
+    const unitFactor = convertsDistanceUnits ? (settings.units === Units.Metric ? 1 / 1.609344 : 1.609344) : 1;
+    const mapEfficiency = (value: number | undefined) => (Number.isFinite(value) ? value! * unitFactor : Number.NaN);
+    const windowLabel =
+      settings.units === Units.Metric
+        ? `${ENERGY_CONSUMPTION_WINDOW_KM * 1000} m`
+        : `${Math.round((ENERGY_CONSUMPTION_WINDOW_KM / 1.609344) * 5280)} ft`;
+    return {
+      data: [
+        {
+          values: visibleRows.map((row) => mapEfficiency(cumulativeByIndex.get(row.index))),
+          color: ChartColours.CumulativeEnergy,
+          label: 'Cumulative average',
+        },
+        {
+          values: visibleRows.map((row) => mapEfficiency(currentByIndex.get(row.index))),
+          color: ChartColours.CurrentEnergy,
+          label: `Recent (${windowLabel})`,
+        },
+      ],
+      unit: settings.units === Units.Metric ? ' Wh/km' : ' Wh/mi',
+      precision: 1,
+      showMax: true,
+      showMin: true,
+      description: `Cumulative average since the start of the log compared with recent net battery energy per distance. Recent consumption integrates battery voltage × current and controller speed over a centered ${windowLabel} distance window, using half the distance before and after each point. Samples at or below 2 km/h (1.2 mph) are shown as zero; those samples are excluded from both energy and distance to avoid stop/near-stop spikes. The distance window avoids unstable estimates from a short time slice just before a stop; the graph's moving-average selector applies to both lines. Regeneration appears as negative consumption; the cumulative line prefers logged energy counters, otherwise energy is integrated from battery voltage × current.`,
+      emptyMessage: 'Ride distance or battery energy data is not available.',
+    };
+  },
 } satisfies Record<string, ChartFactoryFn>;
 export type ChartKey = keyof typeof Charts;
 export const chartKeys = Object.keys(Charts);
@@ -114,6 +167,18 @@ export interface TickOptions {
   suggestedMin?: number;
   suggestedMax?: number;
   maxTicks?: number;
+}
+
+/** Keep axis labels short while retaining scale context for very large values. */
+export function formatAxisTick(value: number): string {
+  const label = Number.isInteger(value) ? value.toString() : value.toFixed(1);
+  const digitCount = label.match(/\d/g)?.length ?? 0;
+  if (digitCount <= 4) return label;
+
+  return new Intl.NumberFormat('en', {
+    notation: 'compact',
+    maximumSignificantDigits: 3,
+  }).format(value);
 }
 
 export const ticks = (values: number[], opts: TickOptions = {}): number[] => {
@@ -153,3 +218,4 @@ export const ticks = (values: number[], opts: TickOptions = {}): number[] => {
 
   return result;
 };
+

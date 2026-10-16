@@ -43,4 +43,18 @@ describe(parseVescToolCsv.name, () => {
     expect(parsed.data[0]!.state_raw).toBe(99);
     expect(parsed.data[0]!.state).toBe('fault 99');
   });
+
+  test('maps VESC Tool charged watt-hour counter', async () => {
+    const input =
+      'ms_today;input_voltage;current_in;watt_hours_used;watt_hours_charged\n' +
+      '1000;80;0;10;2\n' +
+      '2000;80;0;12.5;2.75';
+    const parsed = await parseVescToolCsv(input);
+
+    expect(parsed.data[0]!.wh).toBe(10);
+    expect(parsed.data[1]!.wh).toBe(12.5);
+    expect(parsed.data[0]!.wh_charged).toBe(2);
+    expect(parsed.data[1]!.wh_charged).toBe(2.75);
+  });
 });
+

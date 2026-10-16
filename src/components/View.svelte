@@ -15,6 +15,7 @@
   import { globalState } from '../lib/global.svelte';
   import {
     computeStats,
+    calculateMedianFrameIntervalSeconds,
     extractGpsInformation,
     findPointsOfInterest,
     hasAdcTelemetry,
@@ -37,31 +38,14 @@
   /** entire view of gps points from `rows` */
   let { gpsPoints, gpsGaps } = $derived(extractGpsInformation(rows, source));
   /** entire list of states from `rows` */
-  let pointsOfInterest = $derived(findPointsOfInterest(rows));
+  let frameIntervalSeconds = $derived(calculateMedianFrameIntervalSeconds(rows));
+  let pointsOfInterest = $derived(
+    findPointsOfInterest(rows, settings.footpadThreshold, settings.footpadFaultDebounceMs, settings.hiddenStates),
+  );
 
   /** computed stats from row data */
-  let stats = $state<RideStats>(
-    import.meta.env.DEV
-      ? computeStats(demoRows, findPointsOfInterest(demoRows))
-      : {
-          totalHalfFaults: 0,
-          totalFullFaults: 0,
-          totalQuickStops: 0,
-          highestPitch: 0,
-          lowestPitch: 0,
-          highestRoll: 0,
-          lowestRoll: 0,
-          highestSpeed: 0,
-          averageSpeed: 0,
-          highestErpm: 0,
-          highestDuty: 0,
-          averageDuty: 0,
-          highestMotorCurrent: 0,
-          highestFieldWeakeningCurrent: 0,
-          highestTempMotor: 0,
-          highestTempController: 0,
-          totalDistanceMeters: 0,
-        },
+  let stats = $derived<RideStats>(
+    computeStats(rows, pointsOfInterest, globalState.unitsFromData, settings.chartSmoothingFrames),
   );
 
   /** whether trim slider overlay is open */
@@ -171,8 +155,6 @@
           trimStart = 0;
           trimEnd = rows.length ? rows.length - 1 : 0;
           selectedIndex = 0;
-
-          stats = computeStats(rows, findPointsOfInterest(rows));
         })
         .catch((error) => {
           clearTimeout(timer);
@@ -273,7 +255,7 @@
   </div>
 {/snippet}
 
-<Header bind:file bind:trimSliderOpen={sliderOpen} />
+<Header bind:file bind:trimSliderOpen={sliderOpen} {frameIntervalSeconds} />
 
 <main
   class="grid w-full bg-slate-600 gap-px grid-flow-dense
@@ -369,13 +351,14 @@
       </select>
       {#if Charts[key]}
         <Chart
-          {...Charts[key](visibleRows)}
+          {...Charts[key](visibleRows, rows)}
           title={key}
           {selectedIndex}
           {setSelectedIdx}
           {gapIndices}
           xValues={visibleRows.map((row) => row.time)}
           spacingByTime={settings.chartSpacingByTime}
+          smoothingFrames={settings.chartSmoothingFrames}
         />
       {:else}
         {@const fallback = defaultSelectedCharts[index]!}
@@ -387,6 +370,7 @@
           {gapIndices}
           xValues={visibleRows.map((row) => row.time)}
           spacingByTime={settings.chartSpacingByTime}
+          smoothingFrames={settings.chartSmoothingFrames}
         />
       {/if}
     </div>
@@ -453,3 +437,4 @@
     }
   }
 </style>
+

@@ -1,11 +1,13 @@
 <script lang="ts">
   import type { Row } from '../lib/parse/types';
   import List from './List.svelte';
+  import settings from '../lib/settings.svelte';
+  import { footpadIsActive } from '../lib/footpad';
 
   let { data, hasAdcTelemetry }: { data: Row; hasAdcTelemetry: boolean } = $props();
   let goingSlow = $derived(data.speed < 2);
-  let adc1Enabled = $derived(data.adc1 > 2);
-  let adc2Enabled = $derived(data.adc2 > 2);
+  let adc1Enabled = $derived(footpadIsActive(data.adc1, settings.footpadThreshold));
+  let adc2Enabled = $derived(footpadIsActive(data.adc2, settings.footpadThreshold));
 
   const ACTIVE_COLOUR = '#0ea5e9';
   const INACTIVE_COLOUR = '#991b1b';
@@ -44,3 +46,4 @@
     ]}
   />
 </div>
+

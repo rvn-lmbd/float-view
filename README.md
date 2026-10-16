@@ -13,6 +13,13 @@ Main features:
 - Can be saved as an applet on mobile devices for offline use
 - And more!
 
+
+## Ride analysis
+
+- The moving-average selector controls graph smoothing and smoothed ride-stat maxima. When smoothing is enabled, statistics show the corresponding one-frame peak in parentheses.
+- The **Energy consumption** graph compares cumulative net efficiency with recent battery consumption integrated over a centered 50 m distance window. Low-speed and stopped samples are shown as zero instead of producing unstable Wh/km spikes.
+- **Settings → Footpad Sensors** lets you adjust the ADC voltage threshold for inactive sensors. The default is **2 V**; the setting is saved in the browser and also applies to Float Renderer exports.
+
 ## Demo
 
 ![demo image of Float View in browser](./.github/demo.jpg)

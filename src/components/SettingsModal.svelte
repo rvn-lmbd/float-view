@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import { State, Units } from '../lib/parse/types';
   import Input from './Input.svelte';
   import { getIcon } from './Map';
@@ -7,19 +8,63 @@
   import type { ChangeEventHandler } from 'svelte/elements';
   import Button from './Button.svelte';
 
-  let isImperial = $derived(settings.units === Units.Imperial);
+  let draftUnits = $state<Units>(settings.units);
+  let draftHiddenStates = $state<State[]>([...settings.hiddenStates]);
+  let draftCellCount = $state<number | undefined>(settings.cellCount);
+  let draftCellMinVolt = $state<number | undefined>(settings.cellMinVolt);
+  let draftCellMaxVolt = $state<number | undefined>(settings.cellMaxVolt);
+  let draftFootpadThresholdVolts = $state(settings.footpadThresholdVolts);
+  let draftFootpadFaultDebounceMs = $state(settings.footpadFaultDebounceMs);
+  let draftMapIconsGreyscale = $state(settings.mapIconsGreyscale);
+  let draftChartSpacingByTime = $state(settings.chartSpacingByTime);
+  let wasOpen = false;
+
+  const inputClass = 'w-[70%] m-px';
+  let isImperial = $derived(draftUnits === Units.Imperial);
+
+  // Keep edits local while the dialog is open. Expensive derived map/chart work is
+  // triggered once, after the user applies the complete set of settings.
+  $effect(() => {
+    const isOpen = settings.open;
+    if (isOpen && !wasOpen) {
+      untrack(() => {
+        draftUnits = settings.units;
+        draftHiddenStates = [...settings.hiddenStates];
+        draftCellCount = settings.cellCount;
+        draftCellMinVolt = settings.cellMinVolt;
+        draftCellMaxVolt = settings.cellMaxVolt;
+        draftFootpadThresholdVolts = settings.footpadThresholdVolts;
+        draftFootpadFaultDebounceMs = settings.footpadFaultDebounceMs;
+        draftMapIconsGreyscale = settings.mapIconsGreyscale;
+        draftChartSpacingByTime = settings.chartSpacingByTime;
+      });
+    }
+    wasOpen = isOpen;
+  });
+
   $effect(() => {
     window.localStorage.setItem(localStorageKey, settings.storedSettings);
   });
 
-  const inputClass = 'w-[70%] m-px';
+  const onchangeUnits: ChangeEventHandler<HTMLInputElement> = () => {
+    draftUnits = isImperial ? Units.Metric : Units.Imperial;
+  };
 
-  const onchangeUnits: ChangeEventHandler<HTMLInputElement> = (e) => {
-    settings.units = isImperial ? Units.Metric : Units.Imperial;
+  const applyAndClose = () => {
+    settings.units = draftUnits;
+    settings.hiddenStates = [...draftHiddenStates];
+    settings.cellCount = draftCellCount;
+    settings.cellMinVolt = draftCellMinVolt;
+    settings.cellMaxVolt = draftCellMaxVolt;
+    settings.footpadThresholdVolts = draftFootpadThresholdVolts;
+    settings.footpadFaultDebounceMs = draftFootpadFaultDebounceMs;
+    settings.mapIconsGreyscale = draftMapIconsGreyscale;
+    settings.chartSpacingByTime = draftChartSpacingByTime;
+    settings.open = false;
   };
 </script>
 
-<Modal bind:open={settings.open} title="Settings">
+<Modal open={settings.open} closeHandler={applyAndClose} closeText="Apply and close" title="Settings">
   <div class="h-full w-full flex flex-col justify-start items-center">
     <h3 class="font-bold text-lg my-2">General</h3>
     <Input
@@ -41,7 +86,7 @@
       label="Cell Count"
       type="number"
       placeholder="20"
-      bind:value={settings.cellCount}
+      bind:value={draftCellCount}
     />
     <Input
       class={inputClass}
@@ -50,7 +95,7 @@
       type="number"
       placeholder="3.0"
       step="0.1"
-      bind:value={settings.cellMinVolt}
+      bind:value={draftCellMinVolt}
     />
     <Input
       class={inputClass}
@@ -59,7 +104,30 @@
       type="number"
       placeholder="4.2"
       step="0.1"
-      bind:value={settings.cellMaxVolt}
+      bind:value={draftCellMaxVolt}
+    />
+    <h3 class="font-bold text-lg my-2">Footpad Sensors</h3>
+    <p>ADC voltage below this value marks a footpad as inactive while riding.</p>
+    <Input
+      class={inputClass}
+      id="footpad_threshold"
+      label="Inactive below (V)"
+      type="number"
+      min="0"
+      max="3.3"
+      step="0.1"
+      bind:value={draftFootpadThresholdVolts}
+    />
+    <p class="mt-2">A fault must persist for this long before it is added as a map marker (VESC-like debounce).</p>
+    <Input
+      class={inputClass}
+      id="footpad_fault_debounce"
+      label="Fault confirmation (ms)"
+      type="number"
+      min="0"
+      max="2000"
+      step="25"
+      bind:value={draftFootpadFaultDebounceMs}
     />
     <h3 class="font-bold text-lg my-2">Map Options</h3>
     <Input
@@ -68,7 +136,7 @@
       label="Unreached markers greyed out"
       title="When moving the rider across the map, markers that the ride has not yet reached will be greyed out."
       type="checkbox"
-      bind:checked={settings.mapIconsGreyscale}
+      bind:checked={draftMapIconsGreyscale}
     />
     <h3 class="font-bold text-lg my-2">Chart Options</h3>
     <Input
@@ -77,13 +145,13 @@
       label="Space chart points by time"
       title="When enabled, distances between chart points are proportional to elapsed time between log entries."
       type="checkbox"
-      bind:checked={settings.chartSpacingByTime}
+      bind:checked={draftChartSpacingByTime}
     />
     <h4 class="font-bold text-md my-2">Visible map markers</h4>
     <ul class="text-left select-none">
       {#each Object.values(State) as state}
         {#if state !== State.Riding}
-          {@const checked = !settings.hiddenStates.includes(state)}
+          {@const checked = !draftHiddenStates.includes(state)}
           {@const { icon, className } = getIcon(state)}
           {@const html = icon.createIcon().innerHTML.trim()}
           <li class="flex flex-rol justify-start items-center gap-2">
@@ -92,11 +160,9 @@
               id="map_{state}"
               {checked}
               onchange={() => {
-                if (settings.hiddenStates.includes(state)) {
-                  settings.hiddenStates = settings.hiddenStates.filter((s) => s !== state);
-                } else {
-                  settings.hiddenStates = settings.hiddenStates.concat(state);
-                }
+                draftHiddenStates = draftHiddenStates.includes(state)
+                  ? draftHiddenStates.filter((s) => s !== state)
+                  : draftHiddenStates.concat(state);
               }}
             />
             <div class="w-4 h-4 state-icon {className} {html ? 'svg' : ''}">
@@ -136,3 +202,4 @@
     {/if}
   </div>
 </Modal>
+

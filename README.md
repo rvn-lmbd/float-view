@@ -36,5 +36,9 @@ Now you'll have `Float View` all the time, even offline!
 3. Load it up in <https://acheronfail.github.io/float-view/> (if it's zipped, unzip it first!)
 4. Enjoy!
 
+## Footpad fault analysis
+
+The configurable ADC inactive-voltage threshold corresponds to Refloat Cfg → General → Specs → Foot Sensors: ADC1 Switch Voltage (`fault_adc1`) and ADC2 Switch Voltage (`fault_adc2`), both defaulting to 2 V. The separate fault durations correspond to Refloat Cfg → General → Stop → Switches: Half Switch Fault Delay (`fault_delay_switch_half`) and Full Switch Fault Delay (`fault_delay_switch_full`), both defaulting to 250 ms.
+
 [Float Control]: https://apps.apple.com/us/app/float-control-vesc-companion/id1590924299
 [Floaty]: https://play.google.com/store/apps/details?id=com.floaty.floatyapp&pcampaignid=web_share

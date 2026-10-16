@@ -1,6 +1,12 @@
 import { z } from 'zod';
 import { State, Units } from './parse/types';
 import { type ChartKey } from '../components/Chart';
+import {
+  DEFAULT_FOOTPAD_HALF_FAULT_DELAY_MS,
+  DEFAULT_FOOTPAD_FULL_FAULT_DELAY_MS,
+  DEFAULT_FOOTPAD_THRESHOLD_VOLTS,
+  normalizeFootpadThreshold,
+} from './footpad';
 
 type SelectedCharts = [ChartKey, ChartKey, ChartKey, ChartKey, ChartKey, ChartKey];
 export const defaultSelectedCharts = Object.freeze([
@@ -29,6 +35,9 @@ const SavedSettingsSchema = z.object({
   chartSpacingByTime: z.boolean().default(false),
   units: UnitsSchema,
   charts: z.string().array(),
+  footpadThresholdVolts: z.number().finite().min(0).max(3.3).catch(DEFAULT_FOOTPAD_THRESHOLD_VOLTS),
+  footpadHalfFaultDelayMs: z.number().finite().min(0).max(2000).catch(DEFAULT_FOOTPAD_HALF_FAULT_DELAY_MS),
+  footpadFullFaultDelayMs: z.number().finite().min(0).max(2000).catch(DEFAULT_FOOTPAD_FULL_FAULT_DELAY_MS),
 });
 type ZSavedSettings = z.infer<typeof SavedSettingsSchema>;
 
@@ -62,6 +71,13 @@ const settings = new (class {
   /** user-defined cell max voltage */
   cellMaxVolt = $state<number | undefined>(savedSettings?.batterySpecs.cellMaxVolt ?? undefined);
 
+  /** ADC voltage below which a footpad is treated as inactive */
+  footpadThresholdVolts = $state(savedSettings?.footpadThresholdVolts ?? DEFAULT_FOOTPAD_THRESHOLD_VOLTS);
+  /** Refloat Half Switch Fault Delay, used for half-switch ride markers. */
+  footpadHalfFaultDelayMs = $state(savedSettings?.footpadHalfFaultDelayMs ?? DEFAULT_FOOTPAD_HALF_FAULT_DELAY_MS);
+  /** Refloat Full Switch Fault Delay, used for full-switch ride markers. */
+  footpadFullFaultDelayMs = $state(savedSettings?.footpadFullFaultDelayMs ?? DEFAULT_FOOTPAD_FULL_FAULT_DELAY_MS);
+
   /** user selected charts */
   charts = $state<SelectedCharts>((savedSettings?.charts as SelectedCharts) ?? [...defaultSelectedCharts]);
 
@@ -82,6 +98,7 @@ const settings = new (class {
     cellMinVolt: this.cellMinVolt,
     cellMaxVolt: this.cellMaxVolt,
   });
+  footpadThreshold = $derived(normalizeFootpadThreshold(this.footpadThresholdVolts));
 
   /** serialised settings */
   storedSettings = $derived(
@@ -92,8 +109,12 @@ const settings = new (class {
       chartSpacingByTime: this.chartSpacingByTime,
       units: this.units,
       charts: this.charts,
+      footpadThresholdVolts: this.footpadThreshold,
+      footpadHalfFaultDelayMs: this.footpadHalfFaultDelayMs,
+      footpadFullFaultDelayMs: this.footpadFullFaultDelayMs,
     } satisfies ZSavedSettings),
   );
 })();
 
 export default settings;
+

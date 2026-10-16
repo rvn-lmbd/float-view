@@ -65,13 +65,85 @@ describe(findPointsOfInterest.name, () => {
   test('still infers footpad faults when ADC telemetry is present', () => {
     const rows: RowWithIndex[] = [
       makeRow({ index: 0, speed: 10, adc1: 0, adc2: 3 }),
-      makeRow({ index: 1, speed: 10, adc1: 0, adc2: 1 }),
+      makeRow({ index: 1, time: 0.1, speed: 10, adc1: 0, adc2: 0.99 }),
     ];
 
-    const points = findPointsOfInterest(rows);
+    const points = findPointsOfInterest(rows, undefined, 0, 0);
     expect(points).toEqual([
       { index: 0, state: State.Custom_OneFootpadAtSpeed },
       { index: 1, state: State.Custom_NoFootpadsAtSpeed },
     ]);
   });
+
+  test('uses the configured voltage for each sensor independently', () => {
+    const rows: RowWithIndex[] = [
+      makeRow({ index: 0, speed: 10, adc1: 1.2, adc2: 1.2 }),
+      makeRow({ index: 1, speed: 10, adc1: 0.9, adc2: 1.2 }),
+    ];
+
+    expect(findPointsOfInterest(rows, 1, 0)).toEqual([{ index: 1, state: State.Custom_OneFootpadAtSpeed }]);
+    expect(findPointsOfInterest(rows, 1.5, 0, 0)).toEqual([
+      { index: 0, state: State.Custom_NoFootpadsAtSpeed },
+      { index: 1, state: State.Custom_NoFootpadsAtSpeed },
+    ]);
+  });
+
+  test('requires the configured debounce duration for a footpad fault', () => {
+    const rows: RowWithIndex[] = [
+      makeRow({ index: 0, time: 0, speed: 10, adc1: 0, adc2: 3 }),
+      makeRow({ index: 1, time: 0.1, speed: 10, adc1: 0, adc2: 3 }),
+      makeRow({ index: 2, time: 0.25, speed: 10, adc1: 0, adc2: 3 }),
+      makeRow({ index: 3, time: 0.3, speed: 10, adc1: 3, adc2: 3 }),
+    ];
+
+    expect(findPointsOfInterest(rows, 2, 250, 250)).toEqual([{ index: 0, state: State.Custom_OneFootpadAtSpeed }]);
+    expect(findPointsOfInterest(rows.slice(0, 2), 2, 250, 250)).toEqual([]);
+  });
+
+  test('uses separate half and full switch fault durations', () => {
+    const rowsFor = (adc2: number) => [
+      makeRow({ index: 0, time: 0, speed: 10, adc1: 0, adc2 }),
+      makeRow({ index: 1, time: 0.15, speed: 10, adc1: 0, adc2 }),
+      makeRow({ index: 2, time: 0.3, speed: 10, adc1: 0, adc2 }),
+    ];
+    expect(findPointsOfInterest(rowsFor(3), 2, 250, 500)).toEqual([
+      { index: 0, state: State.Custom_OneFootpadAtSpeed },
+    ]);
+    expect(findPointsOfInterest(rowsFor(3), 2, 400, 500)).toEqual([]);
+    const fullFaultRows = [
+      makeRow({ index: 0, time: 0, speed: 10, adc1: 3, adc2: 3 }),
+      makeRow({ index: 1, time: 0.15, speed: 10, adc1: 0, adc2: 0 }),
+      makeRow({ index: 2, time: 0.3, speed: 10, adc1: 0, adc2: 0 }),
+      makeRow({ index: 3, time: 0.45, speed: 10, adc1: 0, adc2: 0 }),
+    ];
+    expect(findPointsOfInterest(fullFaultRows, 2, 500, 250)).toEqual([
+      { index: 1, state: State.Custom_NoFootpadsAtSpeed },
+    ]);
+    expect(findPointsOfInterest(fullFaultRows, 2, 500, 400)).toEqual([]);
+  });
+
+  test('records each contiguous VESC fault state once instead of once per frame', () => {
+    const rows: RowWithIndex[] = [
+      makeRow({ index: 0, time: 0, state: State.Quickstop }),
+      makeRow({ index: 1, time: 0.1, state: State.Quickstop }),
+      makeRow({ index: 2, time: 0.2, state: State.Riding }),
+    ];
+
+    expect(findPointsOfInterest(rows)).toEqual([{ index: 0, state: State.Quickstop }]);
+  });
+
+  test('starts a new footpad fault event after a long telemetry gap', () => {
+    const rows: RowWithIndex[] = [
+      makeRow({ index: 0, time: 0, speed: 10, adc1: 0, adc2: 3 }),
+      makeRow({ index: 1, time: 0.25, speed: 10, adc1: 0, adc2: 3 }),
+      makeRow({ index: 2, time: 1.5, speed: 10, adc1: 0, adc2: 3 }),
+      makeRow({ index: 3, time: 1.75, speed: 10, adc1: 0, adc2: 3 }),
+    ];
+
+    expect(findPointsOfInterest(rows, 2, 250, 250)).toEqual([
+      { index: 0, state: State.Custom_OneFootpadAtSpeed },
+      { index: 2, state: State.Custom_OneFootpadAtSpeed },
+    ]);
+  });
 });
+

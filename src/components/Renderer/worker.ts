@@ -37,6 +37,7 @@ self.addEventListener('message', async (e) => {
         command.canvas,
         {
           drawRemoteTilt: command.drawRemoteTilt,
+          footpadThresholdVolts: command.footpadThresholdVolts,
           backgroundColor: command.backgroundColor,
           boardPosition3d: command.boardPosition3d,
           boardPosition3dRaised: command.boardPosition3dRaised,
@@ -114,6 +115,7 @@ class VideoGenerator {
       this.options.canvas,
       {
         drawRemoteTilt: this.options.drawRemoteTilt,
+        footpadThresholdVolts: this.options.footpadThresholdVolts,
         backgroundColor: this.options.backgroundColor,
         boardPosition3d: this.options.boardPosition3d,
         boardPosition3dRaised: this.options.boardPosition3dRaised,

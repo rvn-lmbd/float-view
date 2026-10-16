@@ -36,6 +36,7 @@ function create2dTexture(
       drawBoard: false,
       drawBackground: false,
       drawRemoteTilt: options.drawRemoteTilt,
+      footpadThresholdVolts: options.footpadThresholdVolts,
       backgroundColor: options.backgroundColor,
       images: options.images,
     });
@@ -361,3 +362,4 @@ export const create3dRenderer: CreateRenderer = async (canvas, options, sendProg
     },
   };
 };
+

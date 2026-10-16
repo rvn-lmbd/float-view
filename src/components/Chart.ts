@@ -28,6 +28,7 @@ export interface Props {
 // https://tailwindcss.com/docs/customizing-colors
 export enum ChartColours {
   Speed = '#fde68a',
+  GpsSpeed = '#38bdf8',
   DutyCycle = '#f472b6',
   BatteryVoltage = '#34d399',
   BatteryWatts = '#eab308',
@@ -48,7 +49,19 @@ export const Charts = {
       {
         values: visibleRows.map((x) => globalState.mapSpeed(x.speed)),
         color: ChartColours.Speed,
+        label: 'Controller',
       },
+      ...(visibleRows.some((x) => Number.isFinite(x.gps_speed))
+        ? [
+            {
+              values: visibleRows.map((x) =>
+                Number.isFinite(x.gps_speed) ? globalState.mapSpeed(x.gps_speed!) : Number.NaN,
+              ),
+              color: ChartColours.GpsSpeed,
+              label: 'GPS',
+            },
+          ]
+        : []),
     ],
     precision: 1,
     unit: settings.units === Units.Metric ? ' km/h' : ' mph',

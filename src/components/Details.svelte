@@ -31,18 +31,27 @@
   let voltsPerCell = $derived(batterySpecs.cellCount ? data.voltage / batterySpecs.cellCount : NaN);
   let cellVoltsLow = $derived(voltsPerCell && batterySpecs.cellMinVolt && voltsPerCell < batterySpecs.cellMinVolt);
   let formatSpeed = $derived((x: number) => (Number.isNaN(x) ? '??' : globalState.mapSpeed(x).toFixed(1)));
+  let showMovingAveragePeaks = $derived(settings.chartSmoothingFrames > 1);
+  const formatWithPeak = (value: number, peak: number, unit: string) =>
+    `${formatFloat(value)}${unit}${showMovingAveragePeaks ? ` (${formatFloat(peak)}${unit})` : ''}`;
 
   const itemClass =
     'text-xs wide:text-sm relative bg-slate-900 text-slate-100 flex justify-around items-center h-full w-full';
 </script>
 
 <div
-  class="h-full w-full bg-slate-600 grid gap-px place-items-center
+  class="relative h-full w-full bg-slate-600 grid gap-px place-items-center
   grid-cols-[repeat(2,minmax(0,1fr))]
   grid-rows-[repeat(3,minmax(0,1fr))]
   wide:grid-cols-[repeat(3,minmax(0,1fr))]
   wide:grid-rows-[repeat(2,minmax(0,1fr))]"
 >
+  {#if showStats && showMovingAveragePeaks}
+    <p class="absolute inset-x-2 top-1 z-20 text-center text-[10px] text-slate-400 pointer-events-none">
+      Maxima use the selected {settings.chartSmoothingFrames}-frame moving average; parentheses show absolute 1-frame
+      peaks.
+    </p>
+  {/if}
   <div class={itemClass}>
     {#if showStats}
       <List
@@ -72,11 +81,11 @@
         items={[
           {
             label: 'Highest Pitch',
-            value: `${formatFloat(stats.highestPitch)}°`,
+            value: formatWithPeak(stats.highestPitch, stats.peakHighestPitch, '°'),
           },
           {
             label: 'Lowest Pitch',
-            value: `${formatFloat(stats.lowestPitch)}°`,
+            value: formatWithPeak(stats.lowestPitch, stats.peakLowestPitch, '°'),
           },
         ]}
       />
@@ -91,11 +100,11 @@
         items={[
           {
             label: 'Highest Roll',
-            value: `${formatFloat(stats.highestRoll)}°`,
+            value: formatWithPeak(stats.highestRoll, stats.peakHighestRoll, '°'),
           },
           {
             label: 'Lowest Roll',
-            value: `${formatFloat(stats.lowestRoll)}°`,
+            value: formatWithPeak(stats.lowestRoll, stats.peakLowestRoll, '°'),
           },
         ]}
       />
@@ -109,17 +118,63 @@
       <List
         items={[
           {
-            label: 'Highest Speed',
-            value: `${formatSpeed(stats.highestSpeed)} ${units === Units.Metric ? 'km/h' : 'mph'}`,
+            label: 'Highest Controller Speed',
+            value: `${formatSpeed(stats.highestSpeed)}${showMovingAveragePeaks ? ` (${formatSpeed(stats.peakSpeed)})` : ''} ${units === Units.Metric ? 'km/h' : 'mph'}`,
             color: ChartColours.Speed,
           },
           {
-            label: 'Average Speed',
+            label: 'Average Controller Speed',
             value: `${formatSpeed(stats.averageSpeed)} ${units === Units.Metric ? 'km/h' : 'mph'}`,
             color: ChartColours.Speed,
           },
-          ...(data.erpm !== undefined ? [{ label: 'Highest ERPM', value: formatInt(stats.highestErpm) }] : []),
-          { label: 'Total Distance', value: `${formatFloat(stats.totalDistanceMeters)} m` },
+          {
+            label: 'Average Controller Speed (moving)',
+            value: `${formatSpeed(stats.averageMovingSpeed)} ${units === Units.Metric ? 'km/h' : 'mph'}`,
+            color: ChartColours.Speed,
+            htmlTitle:
+              'Time-weighted controller speed while moving faster than 0 km/h; intervals at zero speed are excluded.',
+          },
+          ...(Number.isFinite(stats.highestGpsSpeed)
+            ? [
+                {
+                  label: 'Highest GPS Speed',
+                  value: `${formatSpeed(stats.highestGpsSpeed)}${showMovingAveragePeaks ? ` (${formatSpeed(stats.peakGpsSpeed)})` : ''} ${units === Units.Metric ? 'km/h' : 'mph'}`,
+                  color: ChartColours.GpsSpeed,
+                },
+              ]
+            : []),
+          ...(Number.isFinite(stats.averageSpeedDeviation)
+            ? [
+                {
+                  label: 'Avg Speed Difference',
+                  value: `${formatSpeed(stats.averageSpeedDeviation)} ${units === Units.Metric ? 'km/h' : 'mph'}`,
+                  color: ChartColours.GpsSpeed,
+                  htmlTitle: 'Mean absolute GPS/controller speed difference while both speeds are at least 5 km/h.',
+                },
+              ]
+            : []),
+          ...(Number.isFinite(stats.wheelDiameterFactor)
+            ? [
+                {
+                  label: 'Wheel Diameter Factor',
+                  value: `×${stats.wheelDiameterFactor.toFixed(3)}`,
+                  htmlTitle:
+                    'Multiply the current VESC Tool wheel diameter by this factor. Calculated from GPS/controller distance while both speeds are at least 5 km/h.',
+                },
+              ]
+            : []),
+          ...(data.erpm !== undefined
+            ? [
+                {
+                  label: 'Highest ERPM',
+                  value: `${formatInt(stats.highestErpm)}${showMovingAveragePeaks ? ` (${formatInt(stats.peakErpm)})` : ''}`,
+                },
+              ]
+            : []),
+          {
+            label: 'Total Distance',
+            value: `${formatFloat(globalState.mapSpeed(stats.totalDistance))} ${units === Units.Metric ? 'km' : 'mi'}`,
+          },
           '-',
           {
             label: 'Time (index)',
@@ -133,10 +188,19 @@
       <List
         items={[
           {
-            label: 'Speed',
+            label: 'Controller Speed',
             value: `${formatSpeed(data.speed)} ${units === Units.Metric ? 'km/h' : 'mph'}`,
             color: ChartColours.Speed,
           },
+          ...(Number.isFinite(data.gps_speed)
+            ? [
+                {
+                  label: 'GPS Speed',
+                  value: `${formatSpeed(data.gps_speed!)} ${units === Units.Metric ? 'km/h' : 'mph'}`,
+                  color: ChartColours.GpsSpeed,
+                },
+              ]
+            : []),
           ...(data.erpm !== undefined ? [{ label: 'ERPM', value: `${data.erpm}` }] : []),
           { label: 'Distance', value: `${formatSpeed(data.distance)} ${units === Units.Metric ? 'km' : 'mi'}` },
           '-',
@@ -159,7 +223,7 @@
         items={[
           {
             label: 'Highest Duty',
-            value: `${formatFloat(stats.highestDuty)}%`,
+            value: formatWithPeak(stats.highestDuty, stats.peakDuty, '%'),
             color: data.duty > 80 ? 'red' : ChartColours.DutyCycle,
           },
           {
@@ -169,26 +233,41 @@
           },
           {
             label: 'Highest Motor Current',
-            value: `${formatFloat(stats.highestMotorCurrent)} A`,
+            value: formatWithPeak(stats.highestMotorCurrent, stats.peakMotorCurrent, ' A'),
             color: ChartColours.CurrentMotor,
+          },
+          {
+            label: 'Highest Motor Regen Current',
+            value: formatWithPeak(stats.highestMotorRegenCurrent, stats.peakMotorRegenCurrent, ' A'),
+            color: ChartColours.CurrentMotor,
+          },
+          {
+            label: 'Highest Motor Power (est.)',
+            value: formatWithPeak(stats.highestMotorPower, stats.peakMotorPower, ' W'),
+            htmlTitle: 'Estimated as battery voltage × duty fraction × motor phase current.',
+          },
+          {
+            label: 'Highest Motor Regen Power (est.)',
+            value: formatWithPeak(stats.highestMotorRegenPower, stats.peakMotorRegenPower, ' W'),
+            htmlTitle: 'Magnitude of negative estimated motor power; estimated as voltage × duty × phase current.',
           },
           ...(data.current_field_weakening !== undefined
             ? [
                 {
                   label: 'Highest Field Weakening',
-                  value: `${formatFloat(stats.highestFieldWeakeningCurrent)} A`,
+                  value: formatWithPeak(stats.highestFieldWeakeningCurrent, stats.peakFieldWeakeningCurrent, ' A'),
                   color: ChartColours.CurrentMotor,
                 },
               ]
             : []),
           {
             label: 'Highest Temp Motor',
-            value: `${formatFloat(stats.highestTempMotor)}°C`,
+            value: formatWithPeak(stats.highestTempMotor, stats.peakTempMotor, '°C'),
             color: ChartColours.TempMotor,
           },
           {
             label: 'Highest Temp Controller',
-            value: `${formatFloat(stats.highestTempController)}°C`,
+            value: formatWithPeak(stats.highestTempController, stats.peakTempController, '°C'),
             color: ChartColours.TempMosfet,
           },
         ]}
@@ -205,6 +284,12 @@
             label: 'Motor Current',
             value: `${formatFloat(data.current_motor)} A`,
             color: ChartColours.CurrentMotor,
+          },
+          {
+            label: 'Motor Power (est.)',
+            value: `${formatFloat(data.voltage * (data.duty / 100) * data.current_motor)} W`,
+            htmlTitle:
+              'Estimated electrical power: battery voltage × duty fraction × motor phase current; not shaft output power.',
           },
           ...(data.current_field_weakening !== undefined
             ? [
@@ -224,31 +309,57 @@
   </div>
 
   <div class={itemClass}>
-    <List
-      items={[
-        { label: 'Spec', value: batterySpecs.cellCount ? `${batterySpecs.cellCount}S` : configureButton },
-        '-',
-        {
-          label: 'Batt V (total)',
-          value: `${formatFloat(data.voltage)} V`,
-          color: ChartColours.BatteryVoltage,
-        },
-        {
-          label: 'Batt V (cell)',
-          value: `${voltsPerCell ? voltsPerCell.toFixed(1) : '??'} V`,
-          color: cellVoltsLow ? 'red' : ChartColours.BatteryVoltage,
-        },
-        {
-          label: 'Batt Current',
-          value: `${formatFloat(data.current_battery)} A`,
-          color: ChartColours.CurrentBattery,
-        },
-        {
-          label: 'Batt Watts',
-          value: `${formatFloat(data.current_battery * data.voltage)} W`,
-        },
-      ]}
-    />
+    {#if showStats}
+      <List
+        items={[
+          {
+            label: 'Highest Battery Current',
+            value: formatWithPeak(stats.highestBatteryCurrent, stats.peakBatteryCurrent, ' A'),
+            color: ChartColours.CurrentBattery,
+          },
+          {
+            label: 'Highest Battery Regen Current',
+            value: formatWithPeak(stats.highestBatteryRegenCurrent, stats.peakBatteryRegenCurrent, ' A'),
+            color: ChartColours.CurrentBattery,
+          },
+          {
+            label: 'Highest Battery Power',
+            value: formatWithPeak(stats.highestBatteryPower, stats.peakBatteryPower, ' W'),
+          },
+          {
+            label: 'Highest Battery Regen Power',
+            value: formatWithPeak(stats.highestBatteryRegenPower, stats.peakBatteryRegenPower, ' W'),
+          },
+        ]}
+      />
+    {:else}
+      <List
+        items={[
+          { label: 'Spec', value: batterySpecs.cellCount ? `${batterySpecs.cellCount}S` : configureButton },
+          '-',
+          {
+            label: 'Batt V (total)',
+            value: `${formatFloat(data.voltage)} V`,
+            color: ChartColours.BatteryVoltage,
+          },
+          {
+            label: 'Batt V (cell)',
+            value: `${voltsPerCell ? voltsPerCell.toFixed(1) : '??'} V`,
+            color: cellVoltsLow ? 'red' : ChartColours.BatteryVoltage,
+          },
+          {
+            label: 'Batt Current',
+            value: `${formatFloat(data.current_battery)} A`,
+            color: ChartColours.CurrentBattery,
+          },
+          {
+            label: 'Batt Power',
+            value: `${formatFloat(data.current_battery * data.voltage)} W`,
+            htmlTitle: 'Signed battery electrical power: positive is energy use, negative is regeneration.',
+          },
+        ]}
+      />
+    {/if}
   </div>
 </div>
 
@@ -263,3 +374,4 @@
     <Button onclick={() => (showStats = true)}>Show Ride Stats</Button>
   {/if}
 {/snippet}
+

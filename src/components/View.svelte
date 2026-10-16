@@ -13,7 +13,6 @@
   import Button from './Button.svelte';
   import { parse, supportedMimeTypes } from '../lib/parse';
   import { globalState } from '../lib/global.svelte';
-  import { calculateMedianFrameIntervalSeconds } from '../lib/smoothing';
   import {
     computeStats,
     extractGpsInformation,
@@ -22,6 +21,7 @@
     type Banner,
     type RideStats,
   } from './View';
+  import { calculateMedianFrameIntervalSeconds } from '../lib/smoothing';
   import { type ChartKey, Charts } from './Chart';
   import { riderSvg } from './Map';
   import PickerFull from './PickerFull.svelte';
@@ -44,32 +44,11 @@
   );
 
   /** computed stats from row data */
-  let stats = $state<RideStats>(
-    import.meta.env.DEV
-      ? computeStats(demoRows, findPointsOfInterest(demoRows))
-      : {
-          totalHalfFaults: 0,
-          totalFullFaults: 0,
-          totalQuickStops: 0,
-          highestPitch: 0,
-          lowestPitch: 0,
-          highestRoll: 0,
-          lowestRoll: 0,
-          highestSpeed: 0,
-          averageSpeed: 0,
-          highestErpm: 0,
-          highestDuty: 0,
-          averageDuty: 0,
-          highestMotorCurrent: 0,
-          highestFieldWeakeningCurrent: 0,
-          highestTempMotor: 0,
-          highestTempController: 0,
-          totalDistanceMeters: 0,
-        },
+  let stats = $derived<RideStats>(
+    computeStats(rows, pointsOfInterest, globalState.unitsFromData, settings.chartSmoothingFrames),
   );
 
-
-    /** whether trim slider overlay is open */
+  /** whether trim slider overlay is open */
   let sliderOpen = $state(false);
   let banners = $state<Banner[]>([]);
 
@@ -176,7 +155,6 @@
           trimStart = 0;
           trimEnd = rows.length ? rows.length - 1 : 0;
           selectedIndex = 0;
-          stats = computeStats(rows, findPointsOfInterest(rows));
         })
         .catch((error) => {
           clearTimeout(timer);

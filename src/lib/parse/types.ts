@@ -83,6 +83,7 @@ export enum RowKey {
   GpsAccuracy = 'gps_accuracy',
   GpsLatitude = 'gps_latitude',
   GpsLongitude = 'gps_longitude',
+  GpsSpeed = 'gps_speed',
   MotorFault = 'motor_fault',
   /**
    * Pitch of the board, but this calculation is produced by heavy Mahony filtering
@@ -133,6 +134,7 @@ export interface Row {
   [RowKey.GpsAccuracy]: number;
   [RowKey.GpsLatitude]: number;
   [RowKey.GpsLongitude]: number;
+  [RowKey.GpsSpeed]?: number;
   [RowKey.MotorFault]: number;
   [RowKey.Pitch]: number;
   [RowKey.RequestedAmps]?: number;
@@ -159,3 +161,4 @@ export interface Row {
 export interface RowWithIndex extends Row {
   index: number;
 }
+

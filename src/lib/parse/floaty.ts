@@ -45,6 +45,7 @@ function mapFloatyLog(logs: ZLog[], location: ZLocation, index: number, startTim
     gps_accuracy: location.accuracy,
     gps_latitude: location.latitude,
     gps_longitude: location.longitude,
+    gps_speed: Number.isFinite(location.speed) ? location.speed : undefined,
     motor_fault: findValue(logs, index, 'faultCode'),
     pitch: findValue(logs, index, 'pitchAngle'),
     roll: findValue(logs, index, 'rollAngle'),
@@ -130,7 +131,7 @@ function csvRowToLocation(row: FloatyCsvRow): ZLocation {
     latitude: requiredNumber(row.latitude),
     longitude: requiredNumber(row.longitude),
     accuracy: requiredNumber(row.accuracy),
-    speed: requiredNumber(row.gpsSpeed),
+    speed: optionalNumber(row.gpsSpeed) ?? Number.NaN,
   };
 }
 

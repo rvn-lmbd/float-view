@@ -49,5 +49,10 @@ The **Settings → Footpad Sensors** threshold mirrors Refloat's **ADC1 Switch V
 
 Fault confirmation corresponds to **Half Switch Fault Delay** (fault_delay_switch_half) and **Full Switch Fault Delay** (fault_delay_switch_full) under **Refloat Cfg → General → Stop → Switches**; both default to **250 ms**. Refloat stores these delays separately, while Float View uses one shared delay only to filter recorded map markers. It does not change controller behavior.
 
+
+## Local and portable builds
+
+Install dependencies with `npm ci`, then run `npm run build` for deployment under `/float-view/`. To build a portable folder that can be served from another HTTP path, set `FLOATVIEW_BASE=./` before building (PowerShell: `$env:FLOATVIEW_BASE='./'; npm run build`). Serve the resulting `dist/` folder over HTTP; opening `index.html` directly with `file://` will not work because the app uses workers and loads the geoid grid.
+
 [Float Control]: https://apps.apple.com/us/app/float-control-vesc-companion/id1590924299
 [Floaty]: https://play.google.com/store/apps/details?id=com.floaty.floatyapp&pcampaignid=web_share

@@ -351,7 +351,7 @@
       </select>
       {#if Charts[key]}
         <Chart
-          {...Charts[key](visibleRows)}
+          {...Charts[key](visibleRows, rows)}
           title={key}
           {selectedIndex}
           {setSelectedIdx}

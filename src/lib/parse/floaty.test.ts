@@ -16,8 +16,10 @@ describe(parseFloatyJson.name, () => {
 
     expect(data[0]!.gps_latitude).toBe(-1.0);
     expect(data[0]!.gps_longitude).toBe(1.5);
+    expect(data[0]!.gps_speed).toBeCloseTo(0.23);
     expect(data[1]!.gps_latitude).toBe(-1.1);
     expect(data[1]!.gps_longitude).toBe(1.6);
+    expect(data[1]!.gps_speed).toBeCloseTo(0.77);
     expect(data[2]!.gps_latitude).toBe(-1.1);
     expect(data[2]!.gps_longitude).toBe(1.6);
     expect(data[0]!.altitude).toBeCloseTo(floatyJson.locations[0]!.altitude - 32.5);
@@ -62,6 +64,18 @@ describe(parseFloatyJson.name, () => {
     expect(data[1]!.distance).toBe(0.5);
     expect(data[2]!.distance).toBe(data[1]!.distance);
   });
+
+  test('maps both pitch fields independently without inferring a setpoint', async () => {
+    const input = JSON.parse(JSON.stringify(floatyJson));
+    input.logs[0].pitchAngle = 2.5;
+    input.logs[0].truePitchAngle = 1.75;
+    input.logs[0].inputTilt = 12;
+
+    const { data } = await parseFloatyJson(JSON.stringify(input));
+    expect(data[0]!.pitch).toBe(2.5);
+    expect(data[0]!.true_pitch).toBe(1.75);
+    expect(data[0]!.setpoint).toBeUndefined();
+  });
 });
 
 describe(parseFloatyCsv.name, () => {
@@ -77,6 +91,7 @@ describe(parseFloatyCsv.name, () => {
     expect(data[0]!.voltage).toBe(81.9);
     expect(data[0]!.gps_latitude).toBe(-1.0);
     expect(data[0]!.gps_longitude).toBe(1.5);
+    expect(data[0]!.gps_speed).toBeCloseTo(0.23);
     expect(data[0]!.time).toBe(0);
     expect(data[1]!.time).toBe(0.01);
     expect(data[0]!.altitude).toBeCloseTo(122.16287420969456 - 32.5);

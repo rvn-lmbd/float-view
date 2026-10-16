@@ -38,7 +38,6 @@
       "controllerTemp": 18,
       "tripDistance": 0,
       "lifeDistance": 592.211,
-      "remainingDistance": 0,
       "rollAngle": -4,
       "pitchAngle": 1,
       "truePitchAngle": 0,
@@ -48,7 +47,6 @@
       "wattHours": 0,
       "state": 1,
       "switchState": 1,
-      "setpointAdjustmentType": 0,
       "faultCode": 0,
       "adc1": 3.1,
       "adc2": 0.08
@@ -65,7 +63,6 @@
       "controllerTemp": 18,
       "tripDistance": 0.5,
       "lifeDistance": 592.211,
-      "remainingDistance": 0,
       "rollAngle": -4,
       "pitchAngle": 0,
       "truePitchAngle": -1,
@@ -75,7 +72,6 @@
       "wattHours": 0,
       "state": 1,
       "switchState": 1,
-      "setpointAdjustmentType": 2,
       "faultCode": 0,
       "adc1": 3.1,
       "adc2": 0.08
@@ -92,7 +88,6 @@
       "controllerTemp": 0,
       "tripDistance": 0,
       "lifeDistance": 592.211,
-      "remainingDistance": 0,
       "rollAngle": -4,
       "pitchAngle": 0,
       "truePitchAngle": -1,
@@ -102,10 +97,10 @@
       "wattHours": 0,
       "state": 1,
       "switchState": 3,
-      "setpointAdjustmentType": 2,
       "faultCode": 0,
       "adc1": 3.1,
       "adc2": 3.08
     }
   ]
 }
+

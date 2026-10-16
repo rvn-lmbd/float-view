@@ -2,6 +2,7 @@ import { Units, type RowWithIndex } from '../lib/parse/types';
 import type { Props as ChartProps } from './Chart';
 import settings from '../lib/settings.svelte';
 import { globalState } from '../lib/global.svelte';
+export { smoothChartValues } from '../lib/smoothing';
 
 export interface Props {
   data: {
@@ -11,6 +12,7 @@ export interface Props {
   }[];
   xValues?: number[];
   spacingByTime?: boolean;
+  smoothingFrames?: number;
   selectedIndex: number;
   setSelectedIdx: (index: number) => void;
   gapIndices: number[];
@@ -104,6 +106,7 @@ export const Charts = {
     showMin: true,
     precision: 1,
   }),
+
 } satisfies Record<string, ChartFactoryFn>;
 export type ChartKey = keyof typeof Charts;
 export const chartKeys = Object.keys(Charts);
@@ -114,6 +117,18 @@ export interface TickOptions {
   suggestedMin?: number;
   suggestedMax?: number;
   maxTicks?: number;
+}
+
+/** Keep axis labels short while retaining scale context for very large values. */
+export function formatAxisTick(value: number): string {
+  const label = Number.isInteger(value) ? value.toString() : value.toFixed(1);
+  const digitCount = label.match(/\d/g)?.length ?? 0;
+  if (digitCount <= 4) return label;
+
+  return new Intl.NumberFormat('en', {
+    notation: 'compact',
+    maximumSignificantDigits: 3,
+  }).format(value);
 }
 
 export const ticks = (values: number[], opts: TickOptions = {}): number[] => {
@@ -153,3 +168,4 @@ export const ticks = (values: number[], opts: TickOptions = {}): number[] => {
 
   return result;
 };
+

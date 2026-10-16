@@ -13,6 +13,7 @@
   import Button from './Button.svelte';
   import { parse, supportedMimeTypes } from '../lib/parse';
   import { globalState } from '../lib/global.svelte';
+  import { calculateMedianFrameIntervalSeconds } from '../lib/smoothing';
   import {
     computeStats,
     extractGpsInformation,
@@ -37,7 +38,10 @@
   /** entire view of gps points from `rows` */
   let { gpsPoints, gpsGaps } = $derived(extractGpsInformation(rows, source));
   /** entire list of states from `rows` */
-  let pointsOfInterest = $derived(findPointsOfInterest(rows));
+  let frameIntervalSeconds = $derived(calculateMedianFrameIntervalSeconds(rows));
+  let pointsOfInterest = $derived(
+    findPointsOfInterest(rows),
+  );
 
   /** computed stats from row data */
   let stats = $state<RideStats>(
@@ -64,7 +68,8 @@
         },
   );
 
-  /** whether trim slider overlay is open */
+
+    /** whether trim slider overlay is open */
   let sliderOpen = $state(false);
   let banners = $state<Banner[]>([]);
 
@@ -171,7 +176,6 @@
           trimStart = 0;
           trimEnd = rows.length ? rows.length - 1 : 0;
           selectedIndex = 0;
-
           stats = computeStats(rows, findPointsOfInterest(rows));
         })
         .catch((error) => {
@@ -273,7 +277,7 @@
   </div>
 {/snippet}
 
-<Header bind:file bind:trimSliderOpen={sliderOpen} />
+<Header bind:file bind:trimSliderOpen={sliderOpen} {frameIntervalSeconds} />
 
 <main
   class="grid w-full bg-slate-600 gap-px grid-flow-dense
@@ -376,6 +380,7 @@
           {gapIndices}
           xValues={visibleRows.map((row) => row.time)}
           spacingByTime={settings.chartSpacingByTime}
+          smoothingFrames={settings.chartSmoothingFrames}
         />
       {:else}
         {@const fallback = defaultSelectedCharts[index]!}
@@ -387,6 +392,7 @@
           {gapIndices}
           xValues={visibleRows.map((row) => row.time)}
           spacingByTime={settings.chartSpacingByTime}
+          smoothingFrames={settings.chartSmoothingFrames}
         />
       {/if}
     </div>
@@ -453,3 +459,4 @@
     }
   }
 </style>
+

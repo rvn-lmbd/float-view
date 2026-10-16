@@ -1,8 +1,12 @@
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 import { parseFloatyCsv, parseFloatyJson } from './floaty';
 import floatyJsonString from './__fixtures__/floaty.json?raw';
 import floatyJson from './__fixtures__/floaty.json';
 import floatyCsv from './__fixtures__/floaty.csv?raw';
+
+vi.mock('../geoid', () => ({
+  loadGeoidGrid: async () => ({ undulation: () => 32.5 }),
+}));
 
 describe(parseFloatyJson.name, () => {
   test('maps gps locations to logs', async () => {
@@ -16,6 +20,7 @@ describe(parseFloatyJson.name, () => {
     expect(data[1]!.gps_longitude).toBe(1.6);
     expect(data[2]!.gps_latitude).toBe(-1.1);
     expect(data[2]!.gps_longitude).toBe(1.6);
+    expect(data[0]!.altitude).toBeCloseTo(floatyJson.locations[0]!.altitude - 32.5);
   });
 
   test('handles missing data in logs', async () => {
@@ -74,6 +79,7 @@ describe(parseFloatyCsv.name, () => {
     expect(data[0]!.gps_longitude).toBe(1.5);
     expect(data[0]!.time).toBe(0);
     expect(data[1]!.time).toBe(0.01);
+    expect(data[0]!.altitude).toBeCloseTo(122.16287420969456 - 32.5);
   });
 
   test('backfills empty csv cells like floaty json nulls', async () => {
@@ -101,3 +107,4 @@ describe(parseFloatyCsv.name, () => {
     });
   });
 });
+

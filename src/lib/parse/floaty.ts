@@ -6,6 +6,33 @@ import { FloatyJsonSchema, type ZFloatyJson, type ZLocation, type ZLog } from '.
 import { DataSource, stateCodeMap, Units, type Row } from './types';
 import { ParseError } from './errors';
 import { cleanCsvHeader } from './csv-format';
+import { loadGeoidGrid } from '../geoid';
+
+/** Android GPS altitude is WGS84 ellipsoidal; EGM96 undulation converts it to height above mean sea level. */
+async function correctFloatyAltitudes(rows: Row[]): Promise<void> {
+  const validRows = rows.filter(
+    (row) =>
+      Number.isFinite(row.altitude) &&
+      Number.isFinite(row.gps_latitude) &&
+      Number.isFinite(row.gps_longitude) &&
+      Math.abs(row.gps_latitude) <= 90 &&
+      (row.gps_latitude !== 0 || row.gps_longitude !== 0),
+  );
+  if (validRows.length === 0) return;
+
+  const grid = await loadGeoidGrid();
+  let lastLatitude: number | undefined;
+  let lastLongitude: number | undefined;
+  let lastUndulation = 0;
+  for (const row of validRows) {
+    if (row.gps_latitude !== lastLatitude || row.gps_longitude !== lastLongitude) {
+      lastLatitude = row.gps_latitude;
+      lastLongitude = row.gps_longitude;
+      lastUndulation = grid.undulation(lastLatitude, lastLongitude);
+    }
+    row.altitude -= lastUndulation;
+  }
+}
 
 /**
  * NOTE: sometimes Floaty doesn't record values, and seems to just put `null` (or 0) in its logs.
@@ -148,7 +175,7 @@ export async function parseFloatyCsv(input: string | File): Promise<ParseResult>
       header: true,
       skipEmptyLines: true,
       transformHeader: cleanCsvHeader,
-      complete: (results) => {
+      complete: async (results) => {
         try {
           if (results.data.length === 0) {
             resolve({
@@ -160,13 +187,21 @@ export async function parseFloatyCsv(input: string | File): Promise<ParseResult>
             return;
           }
 
+          const data = rowsFromFloatyCsv(results.data);
+          const errors = results.errors.length
+            ? [new ParseError('Failed to parse Floaty CSV properly!', results.errors)]
+            : [];
+          try {
+            await correctFloatyAltitudes(data);
+          } catch (error) {
+            errors.push(new ParseError('Could not correct Floaty GPS elevation to mean sea level', error));
+          }
+
           resolve({
             source: DataSource.Floaty,
-            data: attachIndex(rowsFromFloatyCsv(results.data)),
+            data: attachIndex(data),
             units: Units.Metric,
-            errors: results.errors.length
-              ? [new ParseError('Failed to parse Floaty CSV properly!', results.errors)]
-              : [],
+            errors,
           });
         } catch (error) {
           resolve({
@@ -193,11 +228,18 @@ export async function parseFloatyJson(input: string | File): Promise<ParseResult
   try {
     const json = JSON.parse(typeof input === 'string' ? input : await input.text());
     const data = FloatyJsonSchema.parse(json);
+    const rows = rowsFromFloatyJson(data);
+    const errors: Error[] = [];
+    try {
+      await correctFloatyAltitudes(rows);
+    } catch (error) {
+      errors.push(new ParseError('Could not correct Floaty GPS elevation to mean sea level', error));
+    }
     return {
       source: DataSource.Floaty,
-      data: attachIndex(rowsFromFloatyJson(data)),
+      data: attachIndex(rows),
       units: Units.Metric,
-      errors: [],
+      errors,
     };
   } catch (error) {
     return {
@@ -208,3 +250,4 @@ export async function parseFloatyJson(input: string | File): Promise<ParseResult
     };
   }
 }
+

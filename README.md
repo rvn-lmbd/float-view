@@ -36,5 +36,11 @@ Now you'll have `Float View` all the time, even offline!
 3. Load it up in <https://acheronfail.github.io/float-view/> (if it's zipped, unzip it first!)
 4. Enjoy!
 
+## Floaty elevation correction
+
+Floaty GPS altitudes are converted from WGS84 ellipsoidal heights to approximate elevation above mean sea level using the bundled 15-minute EGM96 geoid grid (`H = h − N`). This correction applies to Floaty JSON/CSV only; Float Control and VESC Tool values are left unchanged because their altitude datum is not established. GPS vertical accuracy and grid resolution limit precision. If the grid cannot load, the ride remains usable with raw altitude and an import warning.
+
+The EGM96 grid is distributed by [GeographicLib](https://geographiclib.sourceforge.io/C++/doc/geoid.html) using [NGA public-domain data](https://github.com/OSGeo/PROJ-data/blob/master/us_nga/us_nga_README.txt).
+
 [Float Control]: https://apps.apple.com/us/app/float-control-vesc-companion/id1590924299
 [Floaty]: https://play.google.com/store/apps/details?id=com.floaty.floatyapp&pcampaignid=web_share

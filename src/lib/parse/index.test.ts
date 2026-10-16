@@ -1,4 +1,8 @@
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
+
+vi.mock('../geoid', () => ({
+  loadGeoidGrid: async () => ({ undulation: () => 32.5 }),
+}));
 
 import fcMetricCsv from './__fixtures__/fc_metric.csv?raw';
 import floatyCsv from './__fixtures__/floaty.csv?raw';
@@ -84,3 +88,4 @@ describe(parse.name, () => {
     expect(result.errors[0]!.message).toMatch(/Unrecognised CSV headers/);
   });
 });
+

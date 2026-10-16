@@ -53,6 +53,7 @@ self.addEventListener('message', async (e) => {
       log('Reading input file...');
       const result = await parse(command.inputFile);
       log('Finished reading input file.');
+      for (const error of result.errors) log(`Import warning: ${error.message}`);
 
       const startingIndex = command.startingIndex ? Math.max(0, command.startingIndex) : 0;
       const endingIndex = command.endingIndex ? Math.min(result.data.length, command.endingIndex) : result.data.length;
@@ -330,3 +331,4 @@ async function generateVideo(options: WorkerCommandDef['start']) {
     generator.dispose();
   }
 }
+
